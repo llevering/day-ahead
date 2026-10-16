@@ -2589,6 +2589,11 @@ class DaCalc(DaBase):
                 else:
                     hp_hours = hours_avail * 0.9
                 hp_hours = math.floor(hp_hours)
+                if heat_needed > 0:
+                    # Minder warmte nodig dan min_run_length uur op het minimale
+                    # vermogen: afronden naar 0 uur gaf blocks_num == 0, waardoor
+                    # de wp zonder min_run_length werd ingepland (losse kwartieren).
+                    hp_hours = max(hp_hours, min(min_run_length, math.floor(hours_avail)))
                 logging.info(f"Aantal in te plannen uren: {hp_hours:.1f}")
 
                 model += xsum(h_hp[u] for u in range(U)) >= heat_needed
@@ -2654,7 +2659,7 @@ class DaCalc(DaBase):
             # if self.hp_adjustment!="on/off":
             if blocks_num == 0:
                 logging.info(
-                    f"Omdat de wp meer dan 75% van de uren draait wordt de wp zonder "
+                    f"Omdat de wp meer dan 80% van de uren draait wordt de wp zonder "
                     f'"min_run_length"={min_run_length} ingepland.'
                 )
             else:
