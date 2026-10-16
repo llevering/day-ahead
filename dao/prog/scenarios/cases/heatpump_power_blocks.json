@@ -25,5 +25,32 @@
       "solved": true,
       "heatpump_runs": { "start": "17:30", "end": "21:00", "runs": false }
     }
+  },
+  {
+    "id": "heatpump-power-small-demand-keeps-min-run-length",
+    "description": "Power-mode heat pump with less remaining heat demand than one hour at the minimum stage needs. hp_hours used to round down to 0, which gave blocks_num 0: min_run_length was dropped and the heat pump was planned for a single quarter. It must still run for at least min_run_length (1 h)",
+    "start": "2026-10-12 11:00",
+    "prices": {
+      "cons": [0.339, 0.3167, 0.3054, 0.3106, 0.3244, 0.3527, 0.4134, 0.4624, 0.4715, 0.4363, 0.3753, 0.36, 0.3482]
+    },
+    "temp": [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0],
+    "states": { "binary_sensor.heatpump_heating": "on" },
+    "config_patch": {
+      "heating.min_run_length": 1,
+      "heating.degree_days_factor.value": 0.15,
+      "heating.stages": [
+        {"max_power": 0, "cop": 8.0},
+        {"max_power": 450, "cop": 4.4},
+        {"max_power": 550, "cop": 5.0},
+        {"max_power": 650, "cop": 4.8},
+        {"max_power": 800, "cop": 4.4},
+        {"max_power": 1000, "cop": 4.0},
+        {"max_power": 1250, "cop": 3.9}
+      ]
+    },
+    "expect": {
+      "solved": true,
+      "heatpump_min_run_hours": 1
+    }
   }
 ]

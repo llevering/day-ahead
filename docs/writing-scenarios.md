@@ -135,6 +135,7 @@ wrong, so the report gives it a line of its own:
 | `battery_discharges_during` | same shape, `min_kwh` | `dc_from_bat` | total kWh discharged in the window ≥ `min_kwh` |
 | `battery_flat_during` | `{"start", "end", "max_kwh": N}` | both | combined charge and discharge activity in the window ≤ `max_kwh` |
 | `heatpump_runs` | `{"start", "end", "runs": bool}` (`runs` default `true`) | `p_hp` | heat pump's summed power in the window is `>1 W` iff `runs` |
+| `heatpump_min_run_hours` | number (hours) | `p_hp` | the heat pump runs, and every contiguous run (summed power `>1 W` per quarter) lasts at least this many hours; a run that reaches the end of the horizon is exempt |
 | `machine_runs_in_window` | `{"machine": "name", "start", "end", "runs": bool}` | `c_ma_u` | the named machine's consumption in the window is `>0` iff `runs` |
 | `scheduled` / `other_scheduled` | `bool` | parsed EV log | EV-specific, see `cases/ev.json` |
 | `reason_contains` | `str` | parsed EV log | substring of day_ahead.py's own Dutch reasoning |

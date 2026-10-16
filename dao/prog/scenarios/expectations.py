@@ -552,6 +552,42 @@ def _check_heatpump_runs(value: dict, ctx: CaseContext) -> CheckResult:
     return CheckResult("heatpump_runs", ok, detail)
 
 
+@case_check("heatpump_min_run_hours")
+def _check_heatpump_min_run_hours(value, ctx: CaseContext) -> CheckResult:
+    """Every contiguous heat-pump run (summed p_hp > 1 W per interval) lasts
+    at least `value` hours. A run that touches the end of the horizon is
+    exempt: it may continue beyond it."""
+    name = "heatpump_min_run_hours"
+    mv = ctx.mv
+    if mv is None or not mv.has("p_hp"):
+        return CheckResult(name, False, "no heat pump in this model")
+    per_u: dict[int, float] = {}
+    for (_s, u), v in mv.items("p_hp"):
+        per_u[u] = per_u.get(u, 0.0) + v
+    if not per_u:
+        return CheckResult(name, False, "no heat pump intervals in this model")
+    last = max(per_u)
+    runs, start = [], None
+    for u in range(last + 2):
+        on = per_u.get(u, 0.0) > 1.0
+        if on and start is None:
+            start = u
+        elif not on and start is not None:
+            runs.append((start, u - 1))
+            start = None
+    if not runs:
+        return CheckResult(name, False, "heat pump never runs")
+    min_len = float(value)
+    short = [
+        f"u{a}-u{b} ({(b - a + 1) * _INTERVAL_H:.2f} h)"
+        for a, b in runs
+        if b < last and (b - a + 1) * _INTERVAL_H < min_len - 1e-9
+    ]
+    ok = not short
+    detail = "" if ok else f"runs shorter than {min_len} h: {', '.join(short[:6])}"
+    return CheckResult(name, ok, detail)
+
+
 def _resolve_machine_index(spec: Any, config: dict[str, Any]) -> tuple[int | None, list[str]]:
     """spec is the scenario's expect.machine_runs_in_window.machine,
     normally a name matching config["machines"][*]["name"] (for example
