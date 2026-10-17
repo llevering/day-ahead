@@ -94,6 +94,27 @@ class DaCalc(DaBase):
         self.machines = self.config.machines
         # self.start_logging()
 
+    # Fallback COP when a stage's COP entity can't be read (same default as on/off mode)
+    HP_STAGE_COP_FALLBACK = 4.0
+
+    def resolve_hp_stage_cop(self, stage) -> float:
+        """COP of a heat pump stage: a literal, or the state of a HA entity."""
+        try:
+            cop = stage.cop.resolve(self.ha_getter)
+        except Exception as e:
+            logging.warning(
+                f"COP van schijf {stage.max_power:.0f} W ({stage.cop.value}) "
+                f"niet leesbaar ({e}), er wordt {self.HP_STAGE_COP_FALLBACK} gebruikt"
+            )
+            return self.HP_STAGE_COP_FALLBACK
+        if cop <= 0:
+            logging.warning(
+                f"COP van schijf {stage.max_power:.0f} W is {cop}, "
+                f"er wordt {self.HP_STAGE_COP_FALLBACK} gebruikt"
+            )
+            return self.HP_STAGE_COP_FALLBACK
+        return cop
+
     def calc_optimum(
         self,
         _start_dt: dt.datetime | None = None,
@@ -2477,13 +2498,22 @@ class DaCalc(DaBase):
                 logging.info(
                     f"Warmtepomp met power-regeling/stooklijnverschuiving wordt ingepland."
                 )
-                # model_dump() converts HeatingStage objects to plain dicts so that
-                # dict-subscript notation can be used throughout the MIP model build loop.
-                # Could be converted to attribute access (only ~8 downstream references),
-                # but kept consistent with the battery stage pattern above.
+                # Stages as plain dicts so that dict-subscript notation can be used
+                # throughout the MIP model build loop (as with the battery stages above);
+                # the COP may be a HA entity and is resolved here, once per run.
                 # The zero-power sentinel and sort order are guaranteed by
                 # HeatingConfig.validate_stages_sorted.
-                hp_stages = [s.model_dump() for s in self.heating_options.stages]
+                hp_stages = [
+                    {"max_power": s.max_power, "cop": self.resolve_hp_stage_cop(s)}
+                    for s in self.heating_options.stages
+                ]
+                logging.info(
+                    "COP per schijf: "
+                    + ", ".join(
+                        f"{st['max_power']:.0f} W: {st['cop']:.2f}"
+                        for st in hp_stages[1:]
+                    )
+                )
                 S = len(hp_stages)
                 # p_hp[s][u]: het gevraagde vermogen in W in dat uur
                 p_hp = [

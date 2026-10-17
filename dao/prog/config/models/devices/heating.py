@@ -3,7 +3,7 @@ Heating system / heat pump configuration models.
 """
 
 from typing import Annotated, Literal, Optional, Union
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from ..base import EntityId, FlexFloat
 
 
@@ -21,16 +21,24 @@ class HeatingStage(BaseModel):
             "x-validation-hint": "Must be >= 0, stages must be sorted ascending",
         },
     )
-    cop: float = Field(
-        gt=0,
+    cop: FlexFloat = Field(
         description="Coefficient of Performance at this power level",
         json_schema_extra={
-            "x-help": "Coefficient of Performance (COP) at this power level. COP = heat_output / electrical_input. Typical values: 3.0-5.0 (3-5x more heat than electricity used).",
+            "x-help": "Coefficient of Performance (COP) at this power level. COP = heat_output / electrical_input. Typical values: 3.0-5.0 (3-5x more heat than electricity used). "
+            "The COP depends strongly on the outdoor temperature: use a HA sensor entity (e.g. a template on the expected outdoor temperature) to let it follow the weather; it is read at every optimization run.",
             "x-unit": "ratio",
             "x-ui-section": "General",
-            "x-validation-hint": "Must be > 0, typically 2.5-5.5",
+            "x-validation-hint": "Must be > 0, typically 2.5-8.0",
         },
     )
+
+    @field_validator("cop")
+    @classmethod
+    def validate_cop_positive(cls, v: FlexFloat) -> FlexFloat:
+        """A literal COP must be > 0; an entity is checked when it is resolved."""
+        if not FlexFloat.is_entity_id(v.value) and float(v.value) <= 0:
+            raise ValueError("cop must be > 0")
+        return v
 
     model_config = ConfigDict(
         extra="allow",
