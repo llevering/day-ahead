@@ -1,9 +1,9 @@
 ---
-name: 刀 Day Ahead Optimizer
-version: 2026.9.1
+name: 刀 Day Ahead Optimizer (llevering fork)
+version: 2026.10.0-rc1-hp7
 slug: day_ahead_opt
-description: Home Assistant Community Add-ons for day ahead optimizations
-url: https://github.com/corneel27/day-ahead
+description: DAO upstream main (2026.10.0.rc1+) + heat pump COP temperature curve and start/stop model, built locally
+url: https://github.com/llevering/day-ahead/tree/addon/hp-blocks
 arch:
   - aarch64
   - amd64
@@ -26,4 +26,3 @@ options:
   use_self_compiled_miplib: false
 schema:
   use_self_compiled_miplib: bool?
-image: "ghcr.io/corneel27/dao"
