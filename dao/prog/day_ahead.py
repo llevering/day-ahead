@@ -25,6 +25,7 @@ from utils import (
     calc_adjustment_heatcurve,
 )
 import logging
+from dao.prog.config.models.devices.heating import cop_temperature_factor
 from dao.prog.da_base import DaBase
 
 _libc = ctypes.CDLL(None)
@@ -211,12 +212,14 @@ class DaCalc(DaBase):
         p_spot = []  # prijs op de spot markt
         pl_avg = []  # prijs levering day_ahead gemiddeld
         uur = []  # datum_tijd van het betreffende uur
+        temp_out = []  # voorspelde buitentemperatuur per interval (meteo)
         # prog_data = prog_data.reset_index()
         # make sure indexes pair with number of rows
         for row in prog_data.itertuples():
             if math.isnan(row.da_ex):
                 break
             uur.append(row.tijd)
+            temp_out.append(row.temp)
             p_spot.append(row.da_ex)
             pl.append(row.da_cons)
             pt.append(row.da_prod)
@@ -2485,6 +2488,21 @@ class DaCalc(DaBase):
                 # HeatingConfig.validate_stages_sorted.
                 hp_stages = [s.model_dump() for s in self.heating_options.stages]
                 S = len(hp_stages)
+                # COP factor per interval from the forecast outdoor temperature
+                # (1.0 without a cop_temperature_curve, or when the forecast is missing)
+                cop_curve = self.heating_options.cop_temperature_curve
+                cop_factor = [
+                    1.0
+                    if t is None or math.isnan(t)
+                    else cop_temperature_factor(cop_curve, t)
+                    for t in temp_out
+                ]
+                avg_cop_factor = sum(cop_factor) / U
+                if cop_curve:
+                    logging.info(
+                        f"COP-factor buitentemperatuur: {min(cop_factor):.2f} - "
+                        f"{max(cop_factor):.2f} (gem. {avg_cop_factor:.2f})"
+                    )
                 # p_hp[s][u]: het gevraagde vermogen in W in dat uur
                 p_hp = [
                     [
@@ -2547,14 +2565,18 @@ class DaCalc(DaBase):
                     model += (
                         h_hp[u]
                         == xsum(
-                            (p_hp[s][u] * hp_stages[s]["cop"] / 1000) for s in range(S)
+                            (p_hp[s][u] * hp_stages[s]["cop"] * cop_factor[u] / 1000)
+                            for s in range(S)
                         )
                         * hour_fraction[u]
                     )
 
-                # max heat power in kW
+                # max heat power in kW (at the average COP factor over the horizon)
                 max_heat_power = (
-                    hp_stages[-1]["max_power"] * hp_stages[-1]["cop"] / 1000
+                    hp_stages[-1]["max_power"]
+                    * hp_stages[-1]["cop"]
+                    * avg_cop_factor
+                    / 1000
                 )
                 logging.info(
                     f"Maximaal warmteproducerend vermogen: {max_heat_power} kW"
@@ -2566,7 +2588,9 @@ class DaCalc(DaBase):
                 # logging.info(
                 #    f"Maximaal te produceren hoeveelheid warmte: {max_heat_prod:.1f} kWh"
                 # )
-                min_heat_power = hp_stages[1]["max_power"] * hp_stages[1]["cop"] / 1000
+                min_heat_power = (
+                    hp_stages[1]["max_power"] * hp_stages[1]["cop"] * avg_cop_factor / 1000
+                )
                 logging.info(
                     f"Minimaal warmteproducerend vermogen: {min_heat_power} kW"
                 )
