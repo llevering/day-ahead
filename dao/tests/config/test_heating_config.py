@@ -1,7 +1,7 @@
 """
 Tests for the heating configuration: the configurable degree-days base temperature
-(stookgrens), which falls back to 16 °C when it is not configured, and the COP
-temperature curve.
+(stookgrens), which falls back to 16 °C when it is not configured, the COP
+temperature curve, and the options of the heat pump start/stop model.
 """
 
 import pytest
@@ -128,3 +128,53 @@ class TestCopTemperatureCurve:
     def test_has_no_alias(self):
         field = HeatingEnabled.model_fields["cop_temperature_curve"]
         assert field.alias is None
+
+
+class TestStartStopOptions:
+    def test_defaults_keep_starts_free_and_no_off_time(self):
+        result = parse_heating({"heater present": True, "stages": STAGES})
+        assert result.min_off_length == 0.0
+        assert result.start_cost == 0.0
+        assert result.entity_hp_running is None
+        assert result.entity_hp_running_since is None
+
+    def test_configured_values_are_used(self):
+        result = parse_heating(
+            {
+                "heater present": True,
+                "stages": STAGES,
+                "min_off_length": 0.75,
+                "start_cost": 0.1,
+                "entity_hp_running": "binary_sensor.heatpump_compressor_running",
+                "entity_hp_running_since": "sensor.heatpump_compressor_state_since",
+            }
+        )
+        assert result.min_off_length == 0.75
+        assert result.start_cost == 0.1
+        assert result.entity_hp_running == "binary_sensor.heatpump_compressor_running"
+        assert (
+            result.entity_hp_running_since == "sensor.heatpump_compressor_state_since"
+        )
+
+    @pytest.mark.parametrize("field", ["min_off_length", "start_cost"])
+    def test_negative_is_rejected(self, field):
+        with pytest.raises(ValidationError):
+            parse_heating({"heater present": True, "stages": STAGES, field: -0.5})
+
+    def test_invalid_running_entity_is_rejected(self):
+        with pytest.raises(ValidationError):
+            parse_heating(
+                {"heater present": True, "stages": STAGES, "entity_hp_running": "x"}
+            )
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "min_off_length",
+            "start_cost",
+            "entity_hp_running",
+            "entity_hp_running_since",
+        ],
+    )
+    def test_has_no_alias(self, field):
+        assert HeatingEnabled.model_fields[field].alias is None
