@@ -1,6 +1,6 @@
 ---
 name: 刀 Day Ahead Optimizer (llevering fork)
-version: 2026.9.1-hp3
+version: 2026.9.1-hp2
 slug: day_ahead_opt
 description: DAO 2026.9.1 + heat pump power-mode block fix (corneel27/day-ahead#896), built locally
 url: https://github.com/llevering/day-ahead/tree/addon/hp-blocks

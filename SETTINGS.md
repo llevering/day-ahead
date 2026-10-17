@@ -1951,7 +1951,7 @@ Define heat pump performance curve by power stages and corresponding COP values.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `max_power` | number | Yes | — | Maximum power in watts for this stage (Unit: `W`) _Must be >= 0, stages must be sorted ascending_ |
-| `cop` | [FlexFloat](#flexfloat) | Yes | — | Coefficient of Performance at this power level (Unit: `ratio`) _Must be > 0, typically 2.5-8.0_ |
+| `cop` | number | Yes | — | Coefficient of Performance at this power level (Unit: `ratio`) _Must be > 0, typically 2.5-5.5_ |
 
 <details>
 <summary><b>📖 Field Details</b> (click to expand)</summary>
@@ -1962,7 +1962,7 @@ Maximum electrical power consumption for this heating stage in watts. Heat pumps
 
 **`cop`**
 
-Coefficient of Performance (COP) at this power level. COP = heat_output / electrical_input. Typical values: 3.0-5.0 (3-5x more heat than electricity used). The COP depends strongly on the outdoor temperature: use a HA sensor entity (e.g. a template on the expected outdoor temperature) to let it follow the weather; it is read at every optimization run.
+Coefficient of Performance (COP) at this power level. COP = heat_output / electrical_input. Typical values: 3.0-5.0 (3-5x more heat than electricity used).
 
 </details>
 
