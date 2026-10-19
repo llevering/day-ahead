@@ -2942,15 +2942,19 @@ class DaCalc(DaBase):
                     for u in range(U):
                         model += heat_deficit[u + 1] <= max_heat_deficit + slack_hi[u]
                         model += heat_deficit[u + 1] >= -max_heat_surplus - slack_lo[u]
-                    # The deficit left at the end is made up later, at the average price
-                    # and the COP of the lowest stage. A surplus left at the end is worth
-                    # less (it leaks away, and the next plan can still produce it then):
-                    # only the cheapest heat in the horizon. Convex, as deficit_value >=
-                    # surplus_value.
-                    deficit_value = (sum(pl) / U) / (hp_stages[1]["cop"] * avg_cop_factor)
-                    surplus_value = min(
+                    # The deficit left at the end is made up later, at the average heat
+                    # price (per interval: price / (COP lowest stage * COP factor),
+                    # weighted by the interval length). A surplus left at the end is
+                    # worth less (it leaks away, and the next plan can still produce it
+                    # then): only the cheapest heat in the horizon. Convex, as
+                    # deficit_value >= surplus_value.
+                    heat_price = [
                         pl[u] / (hp_stages[1]["cop"] * cop_factor[u]) for u in range(U)
-                    )
+                    ]
+                    deficit_value = sum(
+                        heat_price[u] * hour_fraction[u] for u in range(U)
+                    ) / sum(hour_fraction)
+                    surplus_value = min(heat_price)
                     surplus_value = min(surplus_value, deficit_value)
                     end_deficit = model.add_var(var_type=CONTINUOUS, lb=0)
                     end_surplus = model.add_var(var_type=CONTINUOUS, lb=0)
