@@ -289,7 +289,8 @@ class HeatingEnabled(BaseModel):
         description="Fixed starting heat deficit in kWh (testing or reset)",
         json_schema_extra={
             "x-help": "With max_heat_deficit: use this deficit at the start of every run instead "
-            "of the balance carried over from the previous run. Meant for testing; leave empty.",
+            "of the balance carried over from the previous run (no carry-over while set). Meant "
+            "for testing; to set the deficit once, change entity_heat_deficit instead.",
             "x-unit": "kWh",
             "x-ui-section": "Configuration",
         },
@@ -299,7 +300,9 @@ class HeatingEnabled(BaseModel):
         description="HA entity to publish the current heat deficit (kWh)",
         json_schema_extra={
             "x-help": "Optional, with max_heat_deficit: an input_number that DAO sets to the heat "
-            "deficit at the start of the planning, for monitoring.",
+            "deficit at the start of every planning. Change it by hand to set the deficit: the "
+            "next run takes the new value once and continues the balance from there. Without a "
+            "balance from a previous run (first use) its value is the starting deficit.",
             "x-ui-section": "Sensors",
             "x-ui-widget-filter": "input_number",
         },

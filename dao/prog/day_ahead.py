@@ -166,6 +166,17 @@ class DaCalc(DaBase):
 
     HEAT_BALANCE_FILE = "../data/heat_balance.json"
 
+    def get_heat_deficit_entity(self) -> float | None:
+        """Value of entity_heat_deficit, or None when not configured or unreadable."""
+        entity = self.heating_options.entity_heat_deficit
+        if entity is None:
+            return None
+        try:
+            return float(self.get_state(entity).state)
+        except Exception as e:
+            logging.warning(f"Warmtetekort ({entity}) niet leesbaar ({e})")
+            return None
+
     def get_heat_deficit_start(
         self,
         now: dt.datetime,
@@ -180,8 +191,12 @@ class DaCalc(DaBase):
         The balance of the previous run, plus the degree-hour heat need since then (at
         the average of the outdoor temperatures of both runs), minus the heat produced
         since then (difference of the daily heat counter; after a reset at midnight the
-        new count). Clamped to [-max_heat_surplus, upper]. heat_deficit_initial, when
-        set, replaces the carried-over balance.
+        new count). Clamped to [-max_heat_surplus, upper].
+        entity_heat_deficit (when configured) is set by DAO to the deficit of every run.
+        When it holds another value than DAO wrote last, it was set by hand, and that
+        value becomes the deficit (once; the balance continues from there). Without a
+        balance from a previous run its value is the starting deficit.
+        heat_deficit_initial, when set, replaces the balance in every run (tests).
         """
         opts = self.heating_options
         if opts.heat_deficit_initial is not None:
@@ -191,11 +206,30 @@ class DaCalc(DaBase):
             with open(self.HEAT_BALANCE_FILE) as f:
                 state = json.load(f)
         except FileNotFoundError:
-            logging.info("Geen warmtebalans van een vorige berekening, tekort start op 0 kWh")
+            pass
         except Exception as e:
-            logging.warning(f"Warmtebalans niet leesbaar ({e}), tekort start op 0 kWh")
+            logging.warning(f"Warmtebalans niet leesbaar ({e})")
+        entity_value = self.get_heat_deficit_entity()
         if not state:
+            if entity_value is not None:
+                logging.info(
+                    f"Geen warmtebalans van een vorige berekening, tekort start op "
+                    f"{entity_value:.1f} kWh ({opts.entity_heat_deficit})"
+                )
+                return min(max(entity_value, -opts.max_heat_surplus), upper)
+            logging.info("Geen warmtebalans van een vorige berekening, tekort start op 0 kWh")
             return 0.0
+        published = state.get("published")
+        if (
+            entity_value is not None
+            and published is not None
+            and abs(entity_value - float(published)) > 0.05
+        ):
+            logging.info(
+                f"Warmtetekort met de hand ingesteld op {entity_value:.1f} kWh "
+                f"({opts.entity_heat_deficit}), was {float(published):.1f} kWh"
+            )
+            return min(max(entity_value, -opts.max_heat_surplus), upper)
         prev_time = dt.datetime.fromisoformat(state["time"])
         hours = (now - prev_time).total_seconds() / 3600
         hours = min(max(hours, 0.0), 48.0)
@@ -224,14 +258,24 @@ class DaCalc(DaBase):
     def save_heat_balance(
         self, now: dt.datetime, deficit: float, heat_counter: float, temp_now: float
     ) -> None:
-        """Store the heat deficit at the start of this planning for the next run."""
+        """Store the heat deficit at the start of this planning for the next run, and
+        publish it to entity_heat_deficit."""
         if self.heating_options.heat_deficit_initial is not None or self.debug:
             return
+        published = round(deficit, 1)
+        entity = self.heating_options.entity_heat_deficit
+        if entity is not None:
+            try:
+                self.set_value(entity, published)
+            except Exception as e:
+                logging.warning(f"Warmtetekort niet naar {entity} geschreven ({e})")
+                published = None
         state = {
             "time": now.isoformat(timespec="seconds"),
             "deficit": round(deficit, 3),
             "heat_counter": heat_counter,
             "temp": temp_now,
+            "published": published,
         }
         try:
             tmp = self.HEAT_BALANCE_FILE + ".tmp"
@@ -2504,12 +2548,6 @@ class DaCalc(DaBase):
                     1.25 * max_heat_deficit + 5,
                 )
                 self.save_heat_balance(now_balance, heat_deficit_0, heat_produced, temp_u[0])
-                entity_heat_deficit = self.heating_options.entity_heat_deficit
-                if entity_heat_deficit is not None:
-                    try:
-                        self.set_value(entity_heat_deficit, round(heat_deficit_0, 1))
-                    except Exception as e:
-                        logging.warning(f"Warmtetekort niet naar {entity_heat_deficit} ({e})")
                 logging.info(
                     f"Thermische buffer: tekort nu {heat_deficit_0:.1f} kWh, toegestaan "
                     f"{-max_heat_surplus:.1f} .. {max_heat_deficit:.1f} kWh, behoefte in de "
