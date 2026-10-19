@@ -6,6 +6,7 @@ Zie verder: DOCS.md
 
 import ctypes
 import datetime as dt
+import json
 import logging
 import math
 import os
@@ -162,6 +163,83 @@ class DaCalc(DaBase):
         if run_hours == 0:
             return False, None
         return True, float(run_hours)
+
+    HEAT_BALANCE_FILE = "../data/heat_balance.json"
+
+    def get_heat_deficit_start(
+        self,
+        now: dt.datetime,
+        heat_counter: float,
+        temp_now: float,
+        degree_days_factor: float,
+        base_temp: float,
+        upper: float,
+    ) -> float:
+        """Heat deficit of the house (kWh) at the start of the planning.
+
+        The balance of the previous run, plus the degree-hour heat need since then (at
+        the average of the outdoor temperatures of both runs), minus the heat produced
+        since then (difference of the daily heat counter; after a reset at midnight the
+        new count). Clamped to [-max_heat_surplus, upper]. heat_deficit_initial, when
+        set, replaces the carried-over balance.
+        """
+        opts = self.heating_options
+        if opts.heat_deficit_initial is not None:
+            return float(opts.heat_deficit_initial)
+        state = None
+        try:
+            with open(self.HEAT_BALANCE_FILE) as f:
+                state = json.load(f)
+        except FileNotFoundError:
+            logging.info("Geen warmtebalans van een vorige berekening, tekort start op 0 kWh")
+        except Exception as e:
+            logging.warning(f"Warmtebalans niet leesbaar ({e}), tekort start op 0 kWh")
+        if not state:
+            return 0.0
+        prev_time = dt.datetime.fromisoformat(state["time"])
+        hours = (now - prev_time).total_seconds() / 3600
+        hours = min(max(hours, 0.0), 48.0)
+        temp_avg = (float(state.get("temp", temp_now)) + temp_now) / 2
+        need = (
+            degree_days_factor
+            * self.meteo.calc_graaddagen(
+                date=now, avg_temp=temp_avg, weighted=True, base_temp=base_temp
+            )
+            * hours
+            / 24
+        )
+        prev_counter = float(state.get("heat_counter", 0.0))
+        if prev_time.date() == now.date() and heat_counter >= prev_counter:
+            produced = heat_counter - prev_counter
+        else:
+            produced = heat_counter
+        deficit = float(state["deficit"]) + need - produced
+        logging.info(
+            f"Warmtebalans: vorige {float(state['deficit']):.1f} kWh "
+            f"({prev_time:%d-%m %H:%M}), behoefte sinds {need:.1f} kWh, "
+            f"geproduceerd {produced:.1f} kWh"
+        )
+        return min(max(deficit, -opts.max_heat_surplus), upper)
+
+    def save_heat_balance(
+        self, now: dt.datetime, deficit: float, heat_counter: float, temp_now: float
+    ) -> None:
+        """Store the heat deficit at the start of this planning for the next run."""
+        if self.heating_options.heat_deficit_initial is not None or self.debug:
+            return
+        state = {
+            "time": now.isoformat(timespec="seconds"),
+            "deficit": round(deficit, 3),
+            "heat_counter": heat_counter,
+            "temp": temp_now,
+        }
+        try:
+            tmp = self.HEAT_BALANCE_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(state, f)
+            os.replace(tmp, self.HEAT_BALANCE_FILE)
+        except Exception as e:
+            logging.warning(f"Warmtebalans niet opgeslagen ({e})")
 
     def calc_optimum(
         self,
@@ -2296,6 +2374,9 @@ class DaCalc(DaBase):
         h_hp = None
         hp_start = []  # a heat pump run starts in interval u (start/stop model)
         hp_start_cost = 0.0
+        hp_deficit_cost = 0  # thermal buffer: penalties and value of the end deficit
+        thermal_buffer = False
+        heat_deficit = []
         c_hp = [
             model.add_var(var_type=CONTINUOUS, lb=0, ub=20) for _ in range(U)
         ]  # Electricity consumption per hour
@@ -2379,7 +2460,62 @@ class DaCalc(DaBase):
                 logging.info(
                     f"Benodigde warmte wordt geproduceerd voor {heat_deadline:%d-%m %H:%M}"
                 )
-            if heat_needed <= 0:
+            # Thermal buffer: a running heat balance instead of the degree-day heat per
+            # day. need_u is the heat need per interval from the degree hours of the
+            # forecast outdoor temperature; the deficit (need minus heat produced) may
+            # grow up to max_heat_deficit and fall to -max_heat_surplus (preheating).
+            max_heat_deficit = self.heating_options.max_heat_deficit
+            thermal_buffer = (
+                max_heat_deficit is not None
+                and (self.heating_options.adjustment or "power").lower() != "on/off"
+            )
+            if max_heat_deficit is not None and not thermal_buffer:
+                logging.warning(
+                    "max_heat_deficit werkt niet met on/off-regeling, wordt genegeerd"
+                )
+            if thermal_buffer:
+                max_heat_surplus = self.heating_options.max_heat_surplus
+                valid_temps = [
+                    t for t in temp_out if t is not None and not math.isnan(t)
+                ]
+                temp_fallback = (
+                    sum(valid_temps) / len(valid_temps) if valid_temps else base_temp
+                )
+                temp_u = [
+                    temp_fallback if t is None or math.isnan(t) else t
+                    for t in temp_out
+                ]
+                need_u = [
+                    degree_days_factor
+                    * self.meteo.calc_graaddagen(
+                        date=tijd[u], avg_temp=temp_u[u], weighted=True, base_temp=base_temp
+                    )
+                    * hour_fraction[u]
+                    / 24
+                    for u in range(U)
+                ]
+                now_balance = start_dt if start_dt is not None else dt.datetime.now()
+                heat_deficit_0 = self.get_heat_deficit_start(
+                    now_balance,
+                    heat_produced,
+                    temp_u[0],
+                    degree_days_factor,
+                    base_temp,
+                    1.25 * max_heat_deficit + 5,
+                )
+                self.save_heat_balance(now_balance, heat_deficit_0, heat_produced, temp_u[0])
+                entity_heat_deficit = self.heating_options.entity_heat_deficit
+                if entity_heat_deficit is not None:
+                    try:
+                        self.set_value(entity_heat_deficit, round(heat_deficit_0, 1))
+                    except Exception as e:
+                        logging.warning(f"Warmtetekort niet naar {entity_heat_deficit} ({e})")
+                logging.info(
+                    f"Thermische buffer: tekort nu {heat_deficit_0:.1f} kWh, toegestaan "
+                    f"{-max_heat_surplus:.1f} .. {max_heat_deficit:.1f} kWh, behoefte in de "
+                    f"planning {sum(need_u):.1f} kWh"
+                )
+            elif heat_needed <= 0:
                 logging.info("Geen warmte nodig: warmtepomp wordt niet ingepland")
                 self.hp_enabled = False
 
@@ -2758,10 +2894,33 @@ class DaCalc(DaBase):
                     f"Minimaal te produceren hoeveelheid warmte: {min_heat_prod:.1f} kWh"
                 )
 
-                # som van alle geproduceerde warmte == benodigde warmte
-                heat_needed = min(heat_needed, max_heat_prod)
+                if thermal_buffer:
+                    # deficit at the end of interval u; soft bounds (a deficit beyond the
+                    # limit costs far more than heat), so the model stays feasible when
+                    # the house starts outside the bounds or a run is forced
+                    heat_deficit = [heat_deficit_0]
+                    for u in range(U):
+                        heat_deficit.append(heat_deficit[u] + need_u[u] - h_hp[u])
+                    slack_hi = [model.add_var(var_type=CONTINUOUS, lb=0) for _ in range(U)]
+                    slack_lo = [model.add_var(var_type=CONTINUOUS, lb=0) for _ in range(U)]
+                    for u in range(U):
+                        model += heat_deficit[u + 1] <= max_heat_deficit + slack_hi[u]
+                        model += heat_deficit[u + 1] >= -max_heat_surplus - slack_lo[u]
+                    # the deficit left at the end is made up later, at the average price
+                    # and the COP of the lowest stage
+                    heat_value = (sum(pl) / U) / (hp_stages[1]["cop"] * avg_cop_factor)
+                    deficit_penalty = 1.0  # euro per kWh beyond the bounds
+                    hp_deficit_cost = heat_value * heat_deficit[U] + deficit_penalty * xsum(
+                        slack_hi[u] + slack_lo[u] for u in range(U)
+                    )
+                    logging.info(
+                        f"Waarde warmtetekort aan het eind: {heat_value:.4f} euro/kWh"
+                    )
+                else:
+                    # som van alle geproduceerde warmte == benodigde warmte
+                    heat_needed = min(heat_needed, max_heat_prod)
 
-                model += xsum(h_hp[u] for u in range(U_heat)) >= heat_needed
+                    model += xsum(h_hp[u] for u in range(U_heat)) >= heat_needed
 
             # tot hier alleen power en heat-curve regeling
 
@@ -3332,6 +3491,8 @@ class DaCalc(DaBase):
             + xsum(switch_cost[e] + low_soc_penalty[e] for e in range(EV))
             # virtuele startkosten warmtepomp
             + hp_start_cost * xsum(hp_start)
+            # thermische buffer: waarde eindtekort en overschrijding grenzen
+            + hp_deficit_cost
             + xsum(
                 (soc_mid[b][0] - soc_mid[b][U])
                 * one_soc[b]
@@ -3512,11 +3673,24 @@ class DaCalc(DaBase):
                 f"Aantal starts: {len(starts)}"
                 + (f" ({', '.join(starts)})" if starts else "")
             )
-            logging.info("u   uur   tar    start hp_on heat cons")
+            if thermal_buffer and heat_deficit:
+                d_vals = [
+                    heat_deficit[u + 1].x if u + 1 < len(heat_deficit) and u < U else 0
+                    for u in range(U)
+                ]
+                logging.info(
+                    f"Warmtetekort in de planning: min {min(d_vals):.1f}, max "
+                    f"{max(d_vals):.1f}, eind {d_vals[-1]:.1f} kWh"
+                )
+            logging.info(
+                "u   uur   tar    start hp_on heat cons"
+                + ("  tekort" if thermal_buffer and heat_deficit else "")
+            )
             for u in range(U):
                 logging.info(
                     f"{u}   {uur[u]} {pl[u]:6.4f}  {hp_start[u].x:6.2f} {int(hp_on[u].x)}"
                     f"   {h_hp[u].x:6.2f}  {c_hp[u].x:6.2f}"
+                    + (f"  {d_vals[u]:6.1f}" if thermal_buffer and heat_deficit else "")
                 )
             if self.hp_adjustment != "on/off":
                 df_hp = pd.DataFrame(columns=["uur", "tar"])

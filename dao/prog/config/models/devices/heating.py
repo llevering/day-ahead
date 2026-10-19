@@ -257,6 +257,53 @@ class HeatingEnabled(BaseModel):
             "x-validation-hint": "Must be >= 0, typically 0.02-0.20 euro/start",
         },
     )
+    max_heat_deficit: float | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum heat deficit of the house in kWh (thermal buffer)",
+        json_schema_extra={
+            "x-help": "Optional: treat the house as a thermal buffer. Instead of producing the "
+            "degree-day heat of today and tomorrow, the plan keeps a running heat balance: the heat "
+            "need per interval (degree hours from the forecast) minus the heat produced. The deficit "
+            "may grow up to this value, i.e. the house may cool down by about max_heat_deficit / "
+            "thermal capacity (kWh per degree). The balance is carried over between runs. "
+            "Not set = degree-day heat per day (the default).",
+            "x-unit": "kWh",
+            "x-ui-section": "Configuration",
+            "x-validation-hint": "Typically 1-1.5 degrees times the thermal capacity of the house",
+        },
+    )
+    max_heat_surplus: float = Field(
+        default=0.0,
+        ge=0,
+        description="Maximum heat surplus of the house in kWh (preheating, thermal buffer)",
+        json_schema_extra={
+            "x-help": "With max_heat_deficit: how much heat may be stored in the house above the "
+            "reference (preheating in cheap hours). 0 = no preheating.",
+            "x-unit": "kWh",
+            "x-ui-section": "Configuration",
+        },
+    )
+    heat_deficit_initial: float | None = Field(
+        default=None,
+        description="Fixed starting heat deficit in kWh (testing or reset)",
+        json_schema_extra={
+            "x-help": "With max_heat_deficit: use this deficit at the start of every run instead "
+            "of the balance carried over from the previous run. Meant for testing; leave empty.",
+            "x-unit": "kWh",
+            "x-ui-section": "Configuration",
+        },
+    )
+    entity_heat_deficit: EntityId | None = Field(
+        default=None,
+        description="HA entity to publish the current heat deficit (kWh)",
+        json_schema_extra={
+            "x-help": "Optional, with max_heat_deficit: an input_number that DAO sets to the heat "
+            "deficit at the start of the planning, for monitoring.",
+            "x-ui-section": "Sensors",
+            "x-ui-widget-filter": "input_number",
+        },
+    )
     entity_hp_running: EntityId | None = Field(
         default=None,
         description="HA entity that is on while the heat pump (compressor) runs",
