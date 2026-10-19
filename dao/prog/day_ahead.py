@@ -2944,15 +2944,29 @@ class DaCalc(DaBase):
                     for u in range(U):
                         model += heat_deficit[u + 1] <= max_heat_deficit + slack_hi[u]
                         model += heat_deficit[u + 1] >= -max_heat_surplus - slack_lo[u]
-                    # the deficit left at the end is made up later, at the average price
-                    # and the COP of the lowest stage
-                    heat_value = (sum(pl) / U) / (hp_stages[1]["cop"] * avg_cop_factor)
+                    # The deficit left at the end is made up later, at the average price
+                    # and the COP of the lowest stage. A surplus left at the end is worth
+                    # less (it leaks away, and the next plan can still produce it then):
+                    # only the cheapest heat in the horizon. Convex, as deficit_value >=
+                    # surplus_value.
+                    deficit_value = (sum(pl) / U) / (hp_stages[1]["cop"] * avg_cop_factor)
+                    surplus_value = min(
+                        pl[u] / (hp_stages[1]["cop"] * cop_factor[u]) for u in range(U)
+                    )
+                    surplus_value = min(surplus_value, deficit_value)
+                    end_deficit = model.add_var(var_type=CONTINUOUS, lb=0)
+                    end_surplus = model.add_var(var_type=CONTINUOUS, lb=0)
+                    model += heat_deficit[U] == end_deficit - end_surplus
                     deficit_penalty = 1.0  # euro per kWh beyond the bounds
-                    hp_deficit_cost = heat_value * heat_deficit[U] + deficit_penalty * xsum(
-                        slack_hi[u] + slack_lo[u] for u in range(U)
+                    hp_deficit_cost = (
+                        deficit_value * end_deficit
+                        - surplus_value * end_surplus
+                        + deficit_penalty
+                        * xsum(slack_hi[u] + slack_lo[u] for u in range(U))
                     )
                     logging.info(
-                        f"Waarde warmtetekort aan het eind: {heat_value:.4f} euro/kWh"
+                        f"Waarde warmte aan het eind: tekort {deficit_value:.4f}, "
+                        f"overschot {surplus_value:.4f} euro/kWh"
                     )
                 else:
                     # som van alle geproduceerde warmte == benodigde warmte
