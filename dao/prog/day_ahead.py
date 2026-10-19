@@ -2921,8 +2921,6 @@ class DaCalc(DaBase):
                 logging.info(
                     f"Minimaal warmteproducerend vermogen: {min_heat_power:.2f} kW"
                 )
-                hours_avail = (U - boiler_int) * self.interval_s / 3600
-                logging.info(f"Aantal beschikbare uren: {hours_avail:.2f}")
                 logging.info(
                     f"Maximaal te produceren hoeveelheid warmte: {max_heat_prod:.1f} kWh"
                 )
