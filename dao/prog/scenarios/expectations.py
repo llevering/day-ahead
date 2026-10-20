@@ -552,6 +552,72 @@ def _check_heatpump_runs(value: dict, ctx: CaseContext) -> CheckResult:
     return CheckResult("heatpump_runs", ok, detail)
 
 
+# start power and stage steps are planned in the first 2 hours (day_ahead.py)
+_HP_SHAPE_INTERVALS = 8
+
+
+def _hp_power_and_pos(ctx: CaseContext) -> tuple[dict[int, float], dict[int, float]]:
+    """Total planned heat pump power (W) and stage position (0 = off, 1 = lowest
+    stage, interpolated) per interval."""
+    stages = ctx.config.get("heating", {}).get("stages", [])
+    powers = [float(st["max_power"]) for st in stages]
+    if powers and powers[0] != 0.0:
+        powers = [0.0] + powers  # the zero-power sentinel HeatingConfig prepends
+    total: dict[int, float] = {}
+    pos: dict[int, float] = {}
+    for (s, u), v in ctx.mv.items("p_hp"):
+        total[u] = total.get(u, 0.0) + v
+        if s > 0 and s < len(powers) and powers[s] > 0:
+            pos[u] = pos.get(u, 0.0) + s * v / powers[s]
+    return total, pos
+
+
+@case_check("heatpump_start_power_min")
+def _check_heatpump_start_power_min(value: float, ctx: CaseContext) -> CheckResult:
+    """Every interval in which a run starts plans at least this power (W)."""
+    name = "heatpump_start_power_min"
+    if ctx.mv is None or not ctx.mv.has("p_hp"):
+        return CheckResult(name, False, "no heat pump in this model")
+    total, _pos = _hp_power_and_pos(ctx)
+    us = sorted(total)
+    boiler = {k[0]: v for k, v in ctx.mv.items("boiler_on")} if ctx.mv.has("boiler_on") else {}
+    starts = [
+        u
+        for i, u in enumerate(us)
+        if u < _HP_SHAPE_INTERVALS
+        and total[u] > 1.0
+        and (i == 0 or (total[us[i - 1]] <= 1.0 and boiler.get(us[i - 1], 0.0) < 0.5))
+    ]
+    if not starts:
+        return CheckResult(name, False, "no start planned")
+    bad = [f"u{u}: {total[u]:.0f} W" for u in starts if total[u] < value - 1.0]
+    ok = not bad
+    return CheckResult(name, ok, "" if ok else f"start below {value} W at {', '.join(bad)}")
+
+
+@case_check("heatpump_max_stage_step")
+def _check_heatpump_max_stage_step(value: float, ctx: CaseContext) -> CheckResult:
+    """While running (not at a start or stop, nor right after a start) the stage
+    moves at most this many stages per 15-minute interval."""
+    name = "heatpump_max_stage_step"
+    if ctx.mv is None or not ctx.mv.has("p_hp"):
+        return CheckResult(name, False, "no heat pump in this model")
+    total, pos = _hp_power_and_pos(ctx)
+    us = sorted(total)
+    on = {u: total[u] > 1.0 for u in us}
+    bad = []
+    for i in range(2, len(us)):
+        u, p, pp = us[i], us[i - 1], us[i - 2]
+        if u >= _HP_SHAPE_INTERVALS:
+            break
+        if on[u] and on[p] and on[pp]:
+            step = abs(pos.get(u, 0.0) - pos.get(p, 0.0))
+            if step > value + 1e-4:
+                bad.append(f"u{p}->u{u}: {step:.2f}")
+    ok = not bad
+    return CheckResult(name, ok, "" if ok else f"stage steps above {value}: {', '.join(bad[:6])}")
+
+
 def _resolve_machine_index(spec: Any, config: dict[str, Any]) -> tuple[int | None, list[str]]:
     """spec is the scenario's expect.machine_runs_in_window.machine,
     normally a name matching config["machines"][*]["name"] (for example

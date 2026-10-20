@@ -1,0 +1,222 @@
+[
+  {
+    "id": "heatpump-start-power-planned",
+    "description": "Power model with start_power 900 W: the heat pump draws more than asked in the first 15 minutes of a run, so every planned start interval has at least 900 W",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    "temp": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "states": {
+      "binary_sensor.heatpump_heating": "on",
+      "binary_sensor.heatpump_compressor_running": {
+        "state": "off",
+        "last_changed": "2026-01-13 20:00"
+      }
+    },
+    "config_patch": {
+      "heating.min_run_length": 1,
+      "heating.degree_days_factor.value": 7.0,
+      "heating.stages": [
+        {
+          "max_power": 0,
+          "cop": 8.0
+        },
+        {
+          "max_power": 450,
+          "cop": 6.2
+        },
+        {
+          "max_power": 550,
+          "cop": 6.2
+        },
+        {
+          "max_power": 650,
+          "cop": 6.1
+        },
+        {
+          "max_power": 750,
+          "cop": 6.0
+        },
+        {
+          "max_power": 1000,
+          "cop": 5.5
+        },
+        {
+          "max_power": 1250,
+          "cop": 5.3
+        }
+      ],
+      "heating.entity_hp_running": "binary_sensor.heatpump_compressor_running",
+      "heating.max_heat_deficit": 20,
+      "heating.max_heat_surplus": 0,
+      "heating.heat_deficit_initial": 19,
+      "heating.start_power": 900,
+      "boiler.boiler_present": false
+    },
+    "expect": {
+      "solved": true,
+      "heatpump_start_power_min": 900
+    }
+  },
+  {
+    "id": "heatpump-max-stage-step",
+    "description": "Power model with max_stage_step 1 and hourly alternating cheap/expensive prices: while running, the planned power moves at most one stage per 15 minutes",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    "temp": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "states": {
+      "binary_sensor.heatpump_heating": "on",
+      "binary_sensor.heatpump_compressor_running": {
+        "state": "off",
+        "last_changed": "2026-01-13 20:00"
+      }
+    },
+    "config_patch": {
+      "heating.min_run_length": 1,
+      "heating.degree_days_factor.value": 7.0,
+      "heating.stages": [
+        {
+          "max_power": 0,
+          "cop": 8.0
+        },
+        {
+          "max_power": 450,
+          "cop": 6.2
+        },
+        {
+          "max_power": 550,
+          "cop": 6.2
+        },
+        {
+          "max_power": 650,
+          "cop": 6.1
+        },
+        {
+          "max_power": 750,
+          "cop": 6.0
+        },
+        {
+          "max_power": 1000,
+          "cop": 5.5
+        },
+        {
+          "max_power": 1250,
+          "cop": 5.3
+        }
+      ],
+      "heating.entity_hp_running": "binary_sensor.heatpump_compressor_running",
+      "heating.max_heat_deficit": 20,
+      "heating.max_heat_surplus": 0,
+      "heating.heat_deficit_initial": 19,
+      "heating.max_stage_step": 1,
+      "boiler.boiler_present": false
+    },
+    "expect": {
+      "solved": true,
+      "heatpump_max_stage_step": 1
+    }
+  }
+]

@@ -26,6 +26,8 @@ KNOWN_EXPECT_KEYS = {
     "battery_flat_during",
     "no_cross_battery_charge_discharge",
     "heatpump_runs",
+    "heatpump_start_power_min",
+    "heatpump_max_stage_step",
     "machine_runs_in_window",
 }
 

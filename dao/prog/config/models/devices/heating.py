@@ -257,6 +257,30 @@ class HeatingEnabled(BaseModel):
             "x-validation-hint": "Must be >= 0, typically 0.02-0.20 euro/start",
         },
     )
+    start_power: float | None = Field(
+        default=None,
+        ge=0,
+        description="Expected power in W during the first 15 minutes of a run",
+        json_schema_extra={
+            "x-help": "Optional, power adjustment: many heat pumps draw more than asked right "
+            "after a start. The plan uses at least this average power in the first 15 minutes "
+            "of a run, so the cost and heat of a start are planned. The power sent to "
+            "entity_hp_power during that time is the power planned after the start.",
+            "x-unit": "W",
+            "x-ui-section": "Configuration",
+        },
+    )
+    max_stage_step: int | None = Field(
+        default=None,
+        ge=1,
+        description="Maximum change in stages per 15 minutes while running",
+        json_schema_extra={
+            "x-help": "Optional, power adjustment: while the heat pump runs, the planned power "
+            "moves at most this many stages per 15 minutes (up or down), so the plan is easier "
+            "to follow. Not for a start or a stop, nor for the interval right after a start.",
+            "x-ui-section": "Configuration",
+        },
+    )
     max_heat_deficit: float | None = Field(
         default=None,
         ge=0,
