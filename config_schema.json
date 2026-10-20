@@ -1786,6 +1786,116 @@
           "x-unit": "euro/start",
           "x-validation-hint": "Must be >= 0, typically 0.02-0.20 euro/start"
         },
+        "start_power": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Expected power in W during the first 15 minutes of a run",
+          "title": "Start Power",
+          "x-help": "Optional, power adjustment: many heat pumps draw more than asked right after a start. The plan uses at least this average power in the first 15 minutes of a run, so the cost and heat of a start are planned. The power sent to entity_hp_power during that time is the power planned after the start.",
+          "x-ui-section": "Configuration",
+          "x-unit": "W"
+        },
+        "max_stage_step": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum change in stages per 15 minutes while running",
+          "title": "Max Stage Step",
+          "x-help": "Optional, power adjustment: while the heat pump runs, the planned power moves at most this many stages per 15 minutes (up or down), so the plan is easier to follow. Not for a start or a stop, nor for the interval right after a start.",
+          "x-ui-section": "Configuration"
+        },
+        "max_heat_deficit": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Maximum heat deficit of the house in kWh (thermal buffer)",
+          "title": "Max Heat Deficit",
+          "x-help": "Optional: treat the house as a thermal buffer. Instead of producing the degree-day heat of today and tomorrow, the plan keeps a running heat balance: the heat need per interval (degree hours from the forecast) minus the heat produced. The deficit may grow up to this value, i.e. the house may cool down by about max_heat_deficit / thermal capacity (kWh per degree). The balance is carried over between runs. Not set = degree-day heat per day (the default).",
+          "x-ui-section": "Configuration",
+          "x-unit": "kWh",
+          "x-validation-hint": "Typically 1-1.5 degrees times the thermal capacity of the house"
+        },
+        "max_heat_surplus": {
+          "default": 0.0,
+          "description": "Maximum heat surplus of the house in kWh (preheating, thermal buffer)",
+          "minimum": 0,
+          "title": "Max Heat Surplus",
+          "type": "number",
+          "x-help": "With max_heat_deficit: how much heat may be stored in the house above the reference (preheating in cheap hours). 0 = no preheating.",
+          "x-ui-section": "Configuration",
+          "x-unit": "kWh"
+        },
+        "heat_deficit_initial": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fixed starting heat deficit in kWh (testing or reset)",
+          "title": "Heat Deficit Initial",
+          "x-help": "With max_heat_deficit: use this deficit at the start of every run instead of the balance carried over from the previous run (no carry-over while set). Meant for testing; to set the deficit once, change entity_heat_deficit instead.",
+          "x-ui-section": "Configuration",
+          "x-unit": "kWh"
+        },
+        "entity_heat_produced_total": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HA entity for the total heat produced (kWh, never reset)",
+          "x-help": "Optional, with max_heat_deficit: a heat counter that does not reset at midnight. The heat balance then uses it instead of entity hp heat produced, so the heat produced between the last run of the day and the reset is not lost.",
+          "x-ui-section": "Sensors",
+          "x-ui-widget-filter": "sensor",
+          "x-unit": "kWh",
+          "title": "Entity Heat Produced Total"
+        },
+        "entity_heat_deficit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HA entity to publish the current heat deficit (kWh)",
+          "x-help": "Optional, with max_heat_deficit: an input_number that DAO sets to the heat deficit at the start of every planning. Change it by hand to set the deficit: the next run takes the new value once and continues the balance from there. Without a balance from a previous run (first use) its value is the starting deficit.",
+          "x-ui-section": "Sensors",
+          "x-ui-widget-filter": "input_number",
+          "title": "Entity Heat Deficit"
+        },
         "entity_hp_running": {
           "anyOf": [
             {
