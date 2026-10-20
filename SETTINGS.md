@@ -719,6 +719,13 @@ Define power levels and corresponding COP values:
 | `min run length` | integer | No | `1` | Minimum run length in hours (Unit: `hours`) _Must be >= 1, typically 1-3_ |
 | `min_off_length` | number | No | `0.0` | Minimum off time in hours (Unit: `hours`) _Must be >= 0, typically 0.5-1_ |
 | `start_cost` | number | No | `0.0` | Virtual cost in euro per heat pump start (Unit: `euro/start`) _Must be >= 0, typically 0.02-0.20 euro/start_ |
+| `start_power` | number (optional) | No | `null` | Expected power in W during the first 15 minutes of a run (Unit: `W`) |
+| `max_stage_step` | integer (optional) | No | `null` | Maximum change in stages per 15 minutes while running |
+| `max_heat_deficit` | number (optional) | No | `null` | Maximum heat deficit of the house in kWh (thermal buffer) (Unit: `kWh`) _Typically 1-1.5 degrees times the thermal capacity of the house_ |
+| `max_heat_surplus` | number | No | `0.0` | Maximum heat surplus of the house in kWh (preheating, thermal buffer) (Unit: `kWh`) |
+| `heat_deficit_initial` | number (optional) | No | `null` | Fixed starting heat deficit in kWh (testing or reset) (Unit: `kWh`) |
+| `entity_heat_produced_total` | [EntityId](#entityid) (optional) | No | `null` | HA entity for the total heat produced (kWh, never reset) (Unit: `kWh`) |
+| `entity_heat_deficit` | [EntityId](#entityid) (optional) | No | `null` | HA entity to publish the current heat deficit (kWh) |
 | `entity_hp_running` | [EntityId](#entityid) (optional) | No | `null` | HA entity that is on while the heat pump (compressor) runs |
 | `entity_hp_running_since` | [EntityId](#entityid) (optional) | No | `null` | HA timestamp sensor: when the heat pump last started or stopped |
 | `entity hp heat produced` | [EntityId](#entityid) (optional) | No | `null` | HA entity for heat produced (Unit: `kWh`) |
@@ -778,6 +785,34 @@ Minimum number of hours the heat pump stays off once stopped, before it is plann
 **`start_cost`**
 
 Virtual cost in euro per start of the heat pump, added to the optimization. Higher = fewer, longer runs: a start is only planned when it saves more than this. Covers wear and the extra consumption at start-up. 0 = starts are free.
+
+**`start_power`**
+
+Optional, power adjustment: many heat pumps draw more than asked right after a start. The plan uses at least this average power in the first 15 minutes of a run, so the cost and heat of a start are planned. The power sent to entity_hp_power during that time is the power planned after the start.
+
+**`max_stage_step`**
+
+Optional, power adjustment: while the heat pump runs, the planned power moves at most this many stages per 15 minutes (up or down), so the plan is easier to follow. Not for a start or a stop, nor for the interval right after a start.
+
+**`max_heat_deficit`**
+
+Optional: treat the house as a thermal buffer. Instead of producing the degree-day heat of today and tomorrow, the plan keeps a running heat balance: the heat need per interval (degree hours from the forecast) minus the heat produced. The deficit may grow up to this value, i.e. the house may cool down by about max_heat_deficit / thermal capacity (kWh per degree). The balance is carried over between runs. Not set = degree-day heat per day (the default).
+
+**`max_heat_surplus`**
+
+With max_heat_deficit: how much heat may be stored in the house above the reference (preheating in cheap hours). 0 = no preheating.
+
+**`heat_deficit_initial`**
+
+With max_heat_deficit: use this deficit at the start of every run instead of the balance carried over from the previous run (no carry-over while set). Meant for testing; to set the deficit once, change entity_heat_deficit instead.
+
+**`entity_heat_produced_total`**
+
+Optional, with max_heat_deficit: a heat counter that does not reset at midnight. The heat balance then uses it instead of entity hp heat produced, so the heat produced between the last run of the day and the reset is not lost.
+
+**`entity_heat_deficit`**
+
+Optional, with max_heat_deficit: an input_number that DAO sets to the heat deficit at the start of every planning. Change it by hand to set the deficit: the next run takes the new value once and continues the balance from there. Without a balance from a previous run (first use) its value is the starting deficit.
 
 **`entity_hp_running`**
 
