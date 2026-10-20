@@ -295,6 +295,18 @@ class HeatingEnabled(BaseModel):
             "x-ui-section": "Configuration",
         },
     )
+    entity_heat_produced_total: EntityId | None = Field(
+        default=None,
+        description="HA entity for the total heat produced (kWh, never reset)",
+        json_schema_extra={
+            "x-help": "Optional, with max_heat_deficit: a heat counter that does not reset at "
+            "midnight. The heat balance then uses it instead of entity hp heat produced, so the "
+            "heat produced between the last run of the day and the reset is not lost.",
+            "x-unit": "kWh",
+            "x-ui-section": "Sensors",
+            "x-ui-widget-filter": "sensor",
+        },
+    )
     entity_heat_deficit: EntityId | None = Field(
         default=None,
         description="HA entity to publish the current heat deficit (kWh)",

@@ -181,6 +181,7 @@ class DaCalc(DaBase):
         self,
         now: dt.datetime,
         heat_counter: float,
+        heat_total: float | None,
         temp_now: float,
         degree_days_factor: float,
         base_temp: float,
@@ -190,8 +191,8 @@ class DaCalc(DaBase):
 
         The balance of the previous run, plus the degree-hour heat need since then (at
         the average of the outdoor temperatures of both runs), minus the heat produced
-        since then (difference of the daily heat counter; after a reset at midnight the
-        new count). Clamped to [-max_heat_surplus, upper].
+        since then (difference of entity_heat_produced_total when set, else of the daily
+        heat counter; after a reset at midnight the new count). Clamped to [-max_heat_surplus, upper].
         entity_heat_deficit (when configured) is set by DAO to the deficit of every run.
         When it holds another value than DAO wrote last, it was set by hand, and that
         value becomes the deficit (once; the balance continues from there). Without a
@@ -243,7 +244,14 @@ class DaCalc(DaBase):
             / 24
         )
         prev_counter = float(state.get("heat_counter", 0.0))
-        if prev_time.date() == now.date() and heat_counter >= prev_counter:
+        prev_total = state.get("heat_total")
+        if (
+            heat_total is not None
+            and prev_total is not None
+            and heat_total >= float(prev_total)
+        ):
+            produced = heat_total - float(prev_total)
+        elif prev_time.date() == now.date() and heat_counter >= prev_counter:
             produced = heat_counter - prev_counter
         else:
             produced = heat_counter
@@ -256,7 +264,12 @@ class DaCalc(DaBase):
         return min(max(deficit, -opts.max_heat_surplus), upper)
 
     def save_heat_balance(
-        self, now: dt.datetime, deficit: float, heat_counter: float, temp_now: float
+        self,
+        now: dt.datetime,
+        deficit: float,
+        heat_counter: float,
+        heat_total: float | None,
+        temp_now: float,
     ) -> None:
         """Store the heat deficit at the start of this planning for the next run, and
         publish it to entity_heat_deficit."""
@@ -274,6 +287,7 @@ class DaCalc(DaBase):
             "time": now.isoformat(timespec="seconds"),
             "deficit": round(deficit, 3),
             "heat_counter": heat_counter,
+            "heat_total": heat_total,
             "temp": temp_now,
             "published": published,
         }
@@ -2539,15 +2553,25 @@ class DaCalc(DaBase):
                     for u in range(U)
                 ]
                 now_balance = start_dt if start_dt is not None else dt.datetime.now()
+                heat_total = None
+                entity_total = self.heating_options.entity_heat_produced_total
+                if entity_total is not None:
+                    try:
+                        heat_total = float(self.get_state(entity_total).state)
+                    except Exception as e:
+                        logging.warning(f"Geen warmtetotaal van {entity_total} ({e})")
                 heat_deficit_0 = self.get_heat_deficit_start(
                     now_balance,
                     heat_produced,
+                    heat_total,
                     temp_u[0],
                     degree_days_factor,
                     base_temp,
                     1.25 * max_heat_deficit + 5,
                 )
-                self.save_heat_balance(now_balance, heat_deficit_0, heat_produced, temp_u[0])
+                self.save_heat_balance(
+                    now_balance, heat_deficit_0, heat_produced, heat_total, temp_u[0]
+                )
                 logging.info(
                     f"Thermische buffer: tekort nu {heat_deficit_0:.1f} kWh, toegestaan "
                     f"{-max_heat_surplus:.1f} .. {max_heat_deficit:.1f} kWh, behoefte in de "
