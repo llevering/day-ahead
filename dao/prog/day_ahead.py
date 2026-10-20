@@ -177,6 +177,24 @@ class DaCalc(DaBase):
             logging.warning(f"Warmtetekort ({entity}) niet leesbaar ({e})")
             return None
 
+    def get_hp_stage_pos(self, hp_stages: list[dict]) -> float | None:
+        """Stage position (1 = lowest stage, interpolated) of the power now asked
+        through entity_hp_power, None without that entity."""
+        entity = self.heating_options.entity_hp_power
+        if entity is None:
+            return None
+        try:
+            power = float(self.get_state(entity).state) * 1000
+        except Exception:
+            return None
+        if power <= hp_stages[1]["max_power"]:
+            return 1.0
+        for s in range(2, len(hp_stages)):
+            lo, hi = hp_stages[s - 1]["max_power"], hp_stages[s]["max_power"]
+            if power <= hi:
+                return s - 1 + (power - lo) / (hi - lo)
+        return float(len(hp_stages) - 1)
+
     def get_heat_deficit_start(
         self,
         now: dt.datetime,
@@ -2431,6 +2449,8 @@ class DaCalc(DaBase):
         p_hp = None
         h_hp = None
         hp_start = []  # a heat pump run starts in interval u (start/stop model)
+        hp_start_phase_0 = False  # interval 0 is (partly) in the start phase of a run
+        hp_start_power_cost = 0  # cost of the start phase for starts after the first hours
         hp_start_cost = 0.0
         hp_deficit_cost = 0  # thermal buffer: penalties and value of the end deficit
         thermal_buffer = False
@@ -3083,6 +3103,72 @@ class DaCalc(DaBase):
                         if t_start[u] < min_off_hours - state_hours:
                             model += hp_on[u] == 0
 
+            # start and ramp of the compressor power (power model only), in the first
+            # hours of the plan: later hours are planned again before they come (a
+            # start further on is covered by start_cost), and the coupling of
+            # intervals makes the model slow
+            hp_shape_hours = 2.0
+            start_power = self.heating_options.start_power
+            max_stage_step = self.heating_options.max_stage_step
+            if p_hp is not None and start_power is not None:
+                p_min = hp_stages[1]["max_power"]
+                start_power = min(max(start_power, p_min), hp_stages[-1]["max_power"])
+                # the first 15 minutes of a run the heat pump draws about start_power,
+                # whatever is asked: plan it, so cost and heat of a start are right
+                # later starts: the extra electricity of the start phase as a cost, so
+                # a start is not moved out of the first hours to escape it
+                extra_kwh = (start_power - p_min) * 0.25 / 1000
+                hp_start_power_cost = xsum(
+                    pl[u] * extra_kwh * hp_start[u]
+                    for u in range(U)
+                    if t_start[u] >= hp_shape_hours
+                )
+                for u in range(U):
+                    if t_start[u] >= hp_shape_hours:
+                        break
+                    hf = hour_fraction[u]
+                    if u == 0 and was_running:
+                        # a run that started less than 15 minutes ago
+                        part = 0.0
+                        if state_hours is not None:
+                            part = min(max(0.25 - state_hours, 0.0), hf)
+                        on = hp_on[0]
+                        hp_start_phase_0 = part > 0
+                    else:
+                        part = min(0.25, hf)
+                        on = hp_start[u]
+                    if part > 0:
+                        p_lb = (part * start_power + (hf - part) * p_min) / hf
+                        model += xsum(p_hp[s][u] for s in range(S)) >= p_lb * on
+            if p_hp is not None and max_stage_step is not None:
+                # stage position: 0 = off, 1 = lowest stage, interpolated in between
+                pos = [xsum(s * hp_s_w[u][s] for s in range(S)) for u in range(U)]
+                if hp_start_phase_0 and U > 1:
+                    start_u = 1  # the interval after the start phase is free
+                else:
+                    start_u = 0
+                for u in range(U):
+                    if t_start[u] >= hp_shape_hours:
+                        break
+                    # per 15 minutes, so 4 steps in an hourly interval
+                    step = max_stage_step * max(1.0, hour_fraction[u] / 0.25)
+                    if u == 0:
+                        if not was_running or hp_start_phase_0:
+                            continue
+                        prev_pos = self.get_hp_stage_pos(hp_stages)
+                        if prev_pos is None:
+                            continue
+                        relax = S * (1 - hp_on[0])
+                        model += pos[0] - prev_pos <= step + relax
+                        model += prev_pos - pos[0] <= step + relax
+                        continue
+                    if u == start_u:
+                        continue
+                    # free at a start or stop, and right after a start
+                    relax = S * (2 - hp_on[u] - hp_on[u - 1] + hp_start[u - 1])
+                    model += pos[u] - pos[u - 1] <= step + relax
+                    model += pos[u - 1] - pos[u] <= step + relax
+
             # constrant 7: ieder interval/uur of boiler of wp
             for u in range(U):
                 if boiler_heated_by_heatpump:
@@ -3567,6 +3653,7 @@ class DaCalc(DaBase):
             + xsum(switch_cost[e] + low_soc_penalty[e] for e in range(EV))
             # virtuele startkosten warmtepomp
             + hp_start_cost * xsum(hp_start)
+            + hp_start_power_cost
             # thermische buffer: waarde eindtekort en overschrijding grenzen
             + hp_deficit_cost
             + xsum(
@@ -4743,6 +4830,19 @@ class DaCalc(DaBase):
                 if entity_hp_power is not None and self.hp_adjustment != "on/off":
                     #  elektrisch vermogen in kW
                     hp_power = c_hp[0].x / hour_fraction[0]
+                    in_start = hp_start_phase_0 or (hp_start and hp_start[0].x > 0.5)
+                    if (
+                        self.heating_options.start_power is not None
+                        and p_hp is not None
+                        and in_start
+                        and U > 1
+                    ):
+                        # the start phase draws start_power anyway: ask for the power
+                        # planned after the start
+                        if hp_on[1].x > 0.5:
+                            hp_power = c_hp[1].x / hour_fraction[1]
+                        else:
+                            hp_power = hp_stages[1]["max_power"] / 1000
                     if self.debug:
                         logging.info(
                             f"Elektrisch vermogen warmtepomp zou zijn ingesteld "
