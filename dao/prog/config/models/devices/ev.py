@@ -3,7 +3,7 @@ Electric Vehicle configuration models.
 """
 
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from ..base import EntityId, FlexBool
 
@@ -232,6 +232,15 @@ class EVConfig(BaseModel):
     entity_stop_charging: EntityId | None = Field(
         default=None,
         alias="entity stop charging",
+        # "entity stop laden" is the pre-2026.5 name. The v0 -> v1 migration
+        # did not rename it in existing configs, which are already at a later
+        # version now, so the old name is still accepted here.
+        validation_alias=AliasChoices(
+            "entity stop charging",
+            "entity_stop_charging",
+            "entity stop laden",
+            "entity_stop_laden",
+        ),
         description="HA entity for stop charging datetime",
         json_schema_extra={
             "x-help": "Home Assistant datetime entity specifying when to stop charging. Provides manual override of optimized schedule.",
