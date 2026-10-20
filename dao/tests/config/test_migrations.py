@@ -4,6 +4,7 @@ Tests for configuration migrations.
 
 from dao.prog.config.migrations.migrator import migrate_config
 from dao.prog.config.migrations.unversioned_to_v0 import migrate_unversioned_to_v0
+from dao.prog.config.migrations.v0_to_v1 import migrate_v0_to_v1
 from dao.prog.config.migrations.v1_to_v2 import migrate_v1_to_v2
 from dao.prog.config.models.database import DatabaseConfig, HADatabaseConfig
 from dao.prog.config.models.pricing import PricingConfig
@@ -287,3 +288,19 @@ def test_migrate_v1_to_v2():
     assert new_config['config_version'] == 2
     assert new_config['grid']["entity_balance_switch"] == "input_boolean.nom"
     assert new_config['grid']["entity_grid_setpoint"] == "input_number.grid_setpoint"
+
+
+def test_migrate_v0_to_v1_entity_stop_laden():
+    """The EV list is stored under its alias "electric vehicle"."""
+    old_config = {
+        "config_version": 0,
+        "electric vehicle": [
+            {"name": "Car", "entity stop laden": "input_datetime.ev_stop"}
+        ],
+    }
+
+    new_config = migrate_v0_to_v1(old_config)
+
+    ev = new_config["electric vehicle"][0]
+    assert "entity stop laden" not in ev
+    assert ev["entity_stop_charging"] == "input_datetime.ev_stop"

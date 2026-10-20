@@ -49,10 +49,12 @@ def migrate_v0_to_v1(config: dict[str, Any]) -> dict[str, Any]:
         logger.info("changed meteo_attemps -> meteo_attempts")
 
     # entity_stop_charging
-    if "electric_vehicle" in migrated and isinstance(
-        migrated["electric_vehicle"], list
-    ):
-        for ev in migrated["electric_vehicle"]:
+    # The config file uses the alias "electric vehicle"; "electric_vehicle" is
+    # the field name. Checking only the latter skipped every real config.
+    for ev_key in ("electric vehicle", "electric_vehicle"):
+        if not isinstance(migrated.get(ev_key), list):
+            continue
+        for ev in migrated[ev_key]:
             value = None
             if "entity_stop_laden" in ev:
                 value = ev["entity_stop_laden"]

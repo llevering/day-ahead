@@ -215,3 +215,39 @@ class TestSocPowerLimit:
         dumped = s.model_dump()
         assert dumped == {"soc": 95, "power": 2500}
         assert "helling" not in dumped
+
+
+# --- EVConfig ---------------------------------------------------------------
+
+from dao.prog.config.models.devices.ev import EVConfig  # noqa: E402
+
+EV_BASE = {
+    "name": "Car",
+    "capacity": 72.7,
+    "entity position": "sensor.ev_position",
+    "charge three phase": True,
+    "charge stages": [{"ampere": 0, "efficiency": 1}, {"ampere": 16, "efficiency": 0.95}],
+    "entity actual level": "sensor.ev_soc",
+    "entity plugged in": "binary_sensor.ev_plugged_in",
+    "charge switch": "input_boolean.ev_charge",
+    "entity set charging ampere": "input_number.ev_ampere",
+    "entity instant start": "input_boolean.ev_instant_start",
+    "entity instant level": "input_number.ev_instant_level",
+}
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["entity stop charging", "entity_stop_charging", "entity stop laden", "entity_stop_laden"],
+)
+def test_entity_stop_charging_names(key):
+    """Configs migrated past v1 can still carry the pre-2026.5 name."""
+    ev = EVConfig.model_validate({**EV_BASE, key: "input_datetime.ev_stop"})
+    assert ev.entity_stop_charging == "input_datetime.ev_stop"
+
+
+def test_entity_stop_charging_serialises_under_current_name():
+    ev = EVConfig.model_validate({**EV_BASE, "entity stop laden": "input_datetime.ev_stop"})
+    dumped = ev.model_dump(by_alias=True, exclude_none=True)
+    assert dumped["entity stop charging"] == "input_datetime.ev_stop"
+    assert "entity stop laden" not in dumped
