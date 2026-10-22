@@ -1,0 +1,454 @@
+[
+ {
+  "id": "ev-night-1",
+  "description": "Ioniq-like 15 stages, 11.6 kWh over a night with nearly flat prices",
+  "start": "2026-01-14 23:00",
+  "prices": {
+   "cons": [
+    0.234,
+    0.221,
+    0.216,
+    0.214,
+    0.213,
+    0.215,
+    0.222,
+    0.24,
+    0.26,
+    0.27,
+    0.25,
+    0.22,
+    0.2,
+    0.19,
+    0.2,
+    0.22,
+    0.25,
+    0.29,
+    0.32,
+    0.31,
+    0.28,
+    0.26,
+    0.24,
+    0.23
+   ]
+  },
+  "config_patch": {
+   "electric_vehicle[0].charge_stages": [
+    {
+     "ampere": 0,
+     "efficiency": 1
+    },
+    {
+     "ampere": 2,
+     "efficiency": 0.78
+    },
+    {
+     "ampere": 4,
+     "efficiency": 0.8
+    },
+    {
+     "ampere": 5.33,
+     "efficiency": 0.81
+    },
+    {
+     "ampere": 6,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 7,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 8,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 9,
+     "efficiency": 0.84
+    },
+    {
+     "ampere": 10,
+     "efficiency": 0.86
+    },
+    {
+     "ampere": 11,
+     "efficiency": 0.87
+    },
+    {
+     "ampere": 12,
+     "efficiency": 0.89
+    },
+    {
+     "ampere": 13,
+     "efficiency": 0.91
+    },
+    {
+     "ampere": 14,
+     "efficiency": 0.92
+    },
+    {
+     "ampere": 15,
+     "efficiency": 0.94
+    },
+    {
+     "ampere": 16,
+     "efficiency": 0.95
+    }
+   ],
+   "electric_vehicle[0].capacity": 72.7,
+   "electric_vehicle[0].charge_three_phase": true,
+   "electric_vehicle[0].switch_cost": 0.01
+  },
+  "ev": {
+   "target": "golf",
+   "plugged_in": true,
+   "position": "home",
+   "actual_soc": 50.0,
+   "wished_level": 66.0,
+   "instant_charge": false,
+   "ready": "+8h30m"
+  },
+  "expect": {
+   "solved": true,
+   "scheduled": true
+  }
+ },
+ {
+  "id": "ev-night-2",
+  "description": "Same with a dead-flat 00-05 price plateau",
+  "start": "2026-01-14 23:00",
+  "prices": {
+   "cons": [
+    0.234,
+    0.215,
+    0.214,
+    0.214,
+    0.214,
+    0.214,
+    0.215,
+    0.24,
+    0.26,
+    0.27,
+    0.25,
+    0.22,
+    0.2,
+    0.19,
+    0.2,
+    0.22,
+    0.25,
+    0.29,
+    0.32,
+    0.31,
+    0.28,
+    0.26,
+    0.24,
+    0.23
+   ]
+  },
+  "config_patch": {
+   "electric_vehicle[0].charge_stages": [
+    {
+     "ampere": 0,
+     "efficiency": 1
+    },
+    {
+     "ampere": 2,
+     "efficiency": 0.78
+    },
+    {
+     "ampere": 4,
+     "efficiency": 0.8
+    },
+    {
+     "ampere": 5.33,
+     "efficiency": 0.81
+    },
+    {
+     "ampere": 6,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 7,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 8,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 9,
+     "efficiency": 0.84
+    },
+    {
+     "ampere": 10,
+     "efficiency": 0.86
+    },
+    {
+     "ampere": 11,
+     "efficiency": 0.87
+    },
+    {
+     "ampere": 12,
+     "efficiency": 0.89
+    },
+    {
+     "ampere": 13,
+     "efficiency": 0.91
+    },
+    {
+     "ampere": 14,
+     "efficiency": 0.92
+    },
+    {
+     "ampere": 15,
+     "efficiency": 0.94
+    },
+    {
+     "ampere": 16,
+     "efficiency": 0.95
+    }
+   ],
+   "electric_vehicle[0].capacity": 72.7,
+   "electric_vehicle[0].charge_three_phase": true,
+   "electric_vehicle[0].switch_cost": 0.01
+  },
+  "ev": {
+   "target": "golf",
+   "plugged_in": true,
+   "position": "home",
+   "actual_soc": 50.0,
+   "wished_level": 66.0,
+   "instant_charge": false,
+   "ready": "+8h30m"
+  },
+  "expect": {
+   "solved": true,
+   "scheduled": true
+  }
+ },
+ {
+  "id": "ev-night-3",
+  "description": "Ioniq-like 15 stages, 18 kWh over the night",
+  "start": "2026-01-14 23:00",
+  "prices": {
+   "cons": [
+    0.234,
+    0.221,
+    0.216,
+    0.214,
+    0.213,
+    0.215,
+    0.222,
+    0.24,
+    0.26,
+    0.27,
+    0.25,
+    0.22,
+    0.2,
+    0.19,
+    0.2,
+    0.22,
+    0.25,
+    0.29,
+    0.32,
+    0.31,
+    0.28,
+    0.26,
+    0.24,
+    0.23
+   ]
+  },
+  "config_patch": {
+   "electric_vehicle[0].charge_stages": [
+    {
+     "ampere": 0,
+     "efficiency": 1
+    },
+    {
+     "ampere": 2,
+     "efficiency": 0.78
+    },
+    {
+     "ampere": 4,
+     "efficiency": 0.8
+    },
+    {
+     "ampere": 5.33,
+     "efficiency": 0.81
+    },
+    {
+     "ampere": 6,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 7,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 8,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 9,
+     "efficiency": 0.84
+    },
+    {
+     "ampere": 10,
+     "efficiency": 0.86
+    },
+    {
+     "ampere": 11,
+     "efficiency": 0.87
+    },
+    {
+     "ampere": 12,
+     "efficiency": 0.89
+    },
+    {
+     "ampere": 13,
+     "efficiency": 0.91
+    },
+    {
+     "ampere": 14,
+     "efficiency": 0.92
+    },
+    {
+     "ampere": 15,
+     "efficiency": 0.94
+    },
+    {
+     "ampere": 16,
+     "efficiency": 0.95
+    }
+   ],
+   "electric_vehicle[0].capacity": 72.7,
+   "electric_vehicle[0].charge_three_phase": true,
+   "electric_vehicle[0].switch_cost": 0.01
+  },
+  "ev": {
+   "target": "golf",
+   "plugged_in": true,
+   "position": "home",
+   "actual_soc": 40.0,
+   "wished_level": 65.0,
+   "instant_charge": false,
+   "ready": "+8h30m"
+  },
+  "expect": {
+   "solved": true,
+   "scheduled": true
+  }
+ },
+ {
+  "id": "ev-night-4",
+  "description": "Small 2.9 kWh top-up over a flat night",
+  "start": "2026-01-14 23:00",
+  "prices": {
+   "cons": [
+    0.234,
+    0.215,
+    0.214,
+    0.214,
+    0.214,
+    0.214,
+    0.215,
+    0.24,
+    0.26,
+    0.27,
+    0.25,
+    0.22,
+    0.2,
+    0.19,
+    0.2,
+    0.22,
+    0.25,
+    0.29,
+    0.32,
+    0.31,
+    0.28,
+    0.26,
+    0.24,
+    0.23
+   ]
+  },
+  "config_patch": {
+   "electric_vehicle[0].charge_stages": [
+    {
+     "ampere": 0,
+     "efficiency": 1
+    },
+    {
+     "ampere": 2,
+     "efficiency": 0.78
+    },
+    {
+     "ampere": 4,
+     "efficiency": 0.8
+    },
+    {
+     "ampere": 5.33,
+     "efficiency": 0.81
+    },
+    {
+     "ampere": 6,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 7,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 8,
+     "efficiency": 0.82
+    },
+    {
+     "ampere": 9,
+     "efficiency": 0.84
+    },
+    {
+     "ampere": 10,
+     "efficiency": 0.86
+    },
+    {
+     "ampere": 11,
+     "efficiency": 0.87
+    },
+    {
+     "ampere": 12,
+     "efficiency": 0.89
+    },
+    {
+     "ampere": 13,
+     "efficiency": 0.91
+    },
+    {
+     "ampere": 14,
+     "efficiency": 0.92
+    },
+    {
+     "ampere": 15,
+     "efficiency": 0.94
+    },
+    {
+     "ampere": 16,
+     "efficiency": 0.95
+    }
+   ],
+   "electric_vehicle[0].capacity": 72.7,
+   "electric_vehicle[0].charge_three_phase": true,
+   "electric_vehicle[0].switch_cost": 0.01
+  },
+  "ev": {
+   "target": "golf",
+   "plugged_in": true,
+   "position": "home",
+   "actual_soc": 62.0,
+   "wished_level": 66.0,
+   "instant_charge": false,
+   "ready": "+8h30m"
+  },
+  "expect": {
+   "solved": true,
+   "scheduled": true
+  }
+ }
+]
