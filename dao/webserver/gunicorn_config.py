@@ -16,4 +16,7 @@ workers = 2
 bind = f"0.0.0.0:{port}"
 forwarded_allow_ips = "*"
 secure_scheme_headers = {"X-Forwarded-Proto": "https"}
-timeout = 120
+# Tasks started via /api/run/<task> run inside the request; an optimisation with
+# an EV to plan can take several minutes and the worker (and the task) would be
+# killed when the request exceeds this timeout.
+timeout = 600
