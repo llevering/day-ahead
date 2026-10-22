@@ -16,7 +16,7 @@ import time
 from contextlib import contextmanager
 
 import pandas as pd
-from mip import BINARY, CONTINUOUS, INTEGER, Model, minimize, xsum
+from mip import BINARY, CONTINUOUS, INTEGER, Model, Var, minimize, xsum
 from pandas.core.dtypes.inference import is_number
 from utils import (
     calc_adjustment_heatcurve,
@@ -316,6 +316,88 @@ class DaCalc(DaBase):
             os.replace(tmp, self.HEAT_BALANCE_FILE)
         except Exception as e:
             logging.warning(f"Warmtebalans niet opgeslagen ({e})")
+
+    MIP_START_FILE = "../data/mip_start.json"
+
+    @staticmethod
+    def mip_start_vars(local_vars: dict, tijd: list, U: int) -> dict:
+        """Binary and integer variables per interval, keyed by container name, index
+        path and interval start, e.g. "stage_on[0, 3]@1792635300".
+
+        Only lists of exactly U variables are taken as interval series, so the key
+        stays valid when the next run starts one or more intervals later."""
+        stamps = [int(pd.Timestamp(t).timestamp()) for t in tijd[:U]]
+        found = {}
+
+        def walk(name, value, path):
+            if not isinstance(value, (list, tuple)) or not value:
+                return
+            if len(value) == U and all(isinstance(v, Var) for v in value):
+                for u, var in enumerate(value):
+                    if var.var_type in (BINARY, INTEGER):
+                        found[f"{name}{list(path)}@{stamps[u]}"] = var
+                return
+            for i, item in enumerate(value):
+                walk(name, item, path + (i,))
+
+        for name, value in local_vars.items():
+            walk(name, value, ())
+        return found
+
+    def apply_mip_start(self, model: Model, start_vars: dict) -> None:
+        """Offer the previous plan as starting solution. CBC keeps it as incumbent
+        when it is still feasible, so a search that ends at the node limit returns
+        a plan at least as good as the previous one instead of a random near-equal
+        one; when it is infeasible (new EV session, new prices) CBC drops it."""
+        try:
+            with open(self.MIP_START_FILE) as f:
+                values = json.load(f).get("values", {})
+        except FileNotFoundError:
+            return
+        except Exception as e:
+            logging.warning(f"Startoplossing niet gelezen ({e})")
+            return
+        start = {}
+        for key, var in start_vars.items():
+            if key in values:
+                start[var.idx] = (var, float(values[key]))
+        if start and model.solver_name.upper() == "CBC":
+            # model.start would add 0 for every integer variable that is not given
+            # (new intervals at the end, counters), which makes a shifted plan
+            # infeasible; CBC itself completes a partial start.
+            try:
+                from mip.cbc import cbclib, ffi
+
+                names = [
+                    ffi.new("char[]", var.name.encode()) for var, _ in start.values()
+                ]
+                cbclib.Cbc_setMIPStart(
+                    model.solver._model,
+                    len(names),
+                    ffi.new("char *[]", names),
+                    ffi.new("double[]", [val for _, val in start.values()]),
+                )
+            except Exception as e:
+                logging.warning(f"Startoplossing niet doorgegeven ({e})")
+                return
+        elif start:
+            model.start = list(start.values())
+        logging.info(
+            f"Startoplossing uit vorige berekening: {len(start)} van "
+            f"{len(start_vars)} geheeltallige variabelen"
+        )
+
+    def save_mip_start(self, start_vars: dict) -> None:
+        if self.debug:
+            return
+        values = {k: round(v.x) for k, v in start_vars.items() if v.x is not None}
+        try:
+            tmp = self.MIP_START_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"values": values}, f)
+            os.replace(tmp, self.MIP_START_FILE)
+        except Exception as e:
+            logging.warning(f"Startoplossing niet opgeslagen ({e})")
 
     def calc_optimum(
         self,
@@ -3693,6 +3775,8 @@ class DaCalc(DaBase):
                     "Kon debug variabele-registry niet opbouwen", exc_info=True
                 )
         # model.check_optimization_results()
+        mip_start = self.mip_start_vars(locals(), tijd, U)
+        self.apply_mip_start(model, mip_start)
 
         # kosten optimalisering
         if self.strategy == "minimize cost":
@@ -3764,6 +3848,7 @@ class DaCalc(DaBase):
             return False
 
         # er is een oplossing
+        self.save_mip_start(mip_start)
         # afdrukken van de resultaten
         logging.info("Het programma heeft een optimale oplossing gevonden.")
         old_cost_da = 0
