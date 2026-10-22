@@ -1,6 +1,6 @@
 ---
 name: 刀 Day Ahead Optimizer (llevering fork)
-version: 2026.10.0-rc1-hp15
+version: 2026.10.0-rc1-hp16
 slug: day_ahead_opt
 description: DAO upstream main (2026.10.0.rc1+) + heat pump COP temperature curve and start/stop model, built locally
 url: https://github.com/llevering/day-ahead/tree/addon/hp-blocks
