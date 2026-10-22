@@ -2222,33 +2222,38 @@ class DaCalc(DaBase):
             for e in range(EV)
         ]  # soc in kWh na ieder interval
 
+        # het hele interval laden
         ev_is_on = [
             [model.add_var(var_type=BINARY) for _ in range(U)] for _ in range(EV)
         ]
 
+        # niet laden; volgt uit stage_on
         ev_is_off = [
-            [model.add_var(var_type=BINARY) for _ in range(U)] for _ in range(EV)
+            [model.add_var(var_type=CONTINUOUS, lb=0, ub=1) for _ in range(U)]
+            for _ in range(EV)
         ]
 
+        # een deel van het interval laden; volgt uit stage_on en ev_is_on
         ev_is_partial = [
-            [model.add_var(var_type=BINARY) for _ in range(U)] for _ in range(EV)
+            [model.add_var(var_type=CONTINUOUS, lb=0, ub=1) for _ in range(U)]
+            for _ in range(EV)
         ]
 
-        ev_boundary_stop = [
-            [model.add_var(var_type=BINARY) for _ in range(U)] for _ in range(EV)
+        # het laden start in dit interval: begin van een blok laadintervallen,
+        # of een deelinterval midden in een blok (laden moet dan stoppen en
+        # opnieuw starten)
+        ev_start = [
+            [model.add_var(var_type=CONTINUOUS, lb=0, ub=1) for _ in range(U)]
+            for _ in range(EV)
         ]
 
-        ev_partial_sum = [
-            model.add_var(var_type=INTEGER, lb=0) for e in range(EV)
-        ]  # sum is_partial
-
-        ev_boundary_sum = [
-            model.add_var(var_type=INTEGER, lb=0) for e in range(EV)
-        ]  # sum is_boundaru
+        ev_starts_sum = [
+            model.add_var(var_type=CONTINUOUS, lb=0) for e in range(EV)
+        ]  # sum of ev starts
 
         ev_start_stops_sum = [
-            model.add_var(var_type=INTEGER, lb=0) for e in range(EV)
-        ]  # sum of ev starts
+            model.add_var(var_type=CONTINUOUS, lb=0) for e in range(EV)
+        ]  # starts and stops, the first start/stop not counted
 
         ev_delta_soc = [
             [model.add_var(var_type=CONTINUOUS, lb=0) for _ in range(U)]
@@ -2372,39 +2377,33 @@ class DaCalc(DaBase):
                     model += low_soc_penalty_int[e][u] == ev_delta_soc[e][u] * ev_low_soc_cost[e] * \
                                  hour_fraction[u]
 
-                eps = 0.0001
-                for u in range(U)[: ready_u[e] + 1]:
-                    # ev_is_off
-                    # model += sf >= ev_is_off[e][u]
-                    model += stage_factor[e][0][u] >= ev_is_off[e][u]
-                    model += stage_factor[e][0][u] <= 1 - eps + eps * ev_is_off[e][u]
+                # er wordt geladen in interval u: precies een echte laadstap
+                # staat aan (stage_on is 1 zodra zijn stage_factor > 0)
+                charging = [
+                    xsum(stage_on[e][cs][u] for cs in range(ECS[e])[1:])
+                    for u in range(ready_u[e] + 1)
+                ]
+                for u in range(ready_u[e] + 1):
+                    model += ev_is_off[e][u] == 1 - charging[u]
+                    # hele interval laden: stap 0 (niet laden) heeft aandeel 0
+                    model += stage_factor[e][0][u] <= 1 - ev_is_on[e][u]
+                    model += ev_is_on[e][u] <= charging[u]
+                    model += ev_is_partial[e][u] == charging[u] - ev_is_on[e][u]
 
-                    # ev_is_on
-                    # model += sf <= 1 - ev_is_on[e][u]
-                    model += stage_factor[e][0][u] <= (1 - ev_is_on[e][u])
-
-                    # ev_is_partial
-                    # model += sf >= eps * ev_is_partial[e][u]
-                    model += stage_factor[e][0][u] >= eps * ev_is_partial[e][u]
-
-                    # model += sf <= (1 - eps) * ev_is_partial[e][u] + ev_is_off[e][u]
-                    model += (
-                        stage_factor[e][0][u]
-                        <= (1 - eps) * ev_is_partial[e][u] + ev_is_off[e][u]
-                    )
-
-                    # precies één toestand
-                    model += (
-                        ev_is_on[e][u] + ev_is_off[e][u] + ev_is_partial[e][u]
-                    ) == 1
-
-                    if u == ready_u[e]:
-                        model += ev_boundary_stop[e][u] == ev_is_on[e][u]
-                    else:
-                        model += ev_boundary_stop[e][u] <= ev_is_on[e][u]
-                        model += ev_boundary_stop[e][u] <= ev_is_off[e][u + 1]
-                        model += ev_boundary_stop[e][u] >= (
-                            ev_is_on[e][u] + ev_is_off[e][u + 1] - 1
+                    # starts. een blok aaneengesloten laadintervallen start
+                    # een keer; een deelinterval aan de rand van een blok
+                    # sluit aan op het blok. een deelinterval met aan beide
+                    # kanten laden kan niet op beide aansluiten en kost een
+                    # extra stop en start.
+                    # anders dan met aparte binaries per toestand houden deze
+                    # ongelijkheden ook in de lp-relaxatie de starts in de
+                    # ondergrens, zodat de solver de optimale oplossing veel
+                    # sneller kan bewijzen
+                    prev_charging = charging[u - 1] if u > 0 else 0
+                    model += ev_start[e][u] >= charging[u] - prev_charging
+                    if 0 < u < ready_u[e]:
+                        model += ev_start[e][u] >= (
+                            charging[u - 1] + charging[u + 1] + ev_is_partial[e][u] - 2
                         )
 
                 # zonder stop-entiteit kan de lader niet halverwege een
@@ -2418,17 +2417,11 @@ class DaCalc(DaBase):
                 if (not can_stop) and (ready_u[e] > 0):
                     model += ev_is_partial[e][0] == 0
 
-                model += ev_partial_sum[e] == xsum(
-                    ev_is_partial[e][u] for u in range(ready_u[e] + 1)
+                model += ev_starts_sum[e] == xsum(
+                    ev_start[e][u] for u in range(ready_u[e] + 1)
                 )
-                model += ev_boundary_sum[e] == xsum(
-                    ev_boundary_stop[e][u] for u in range(ready_u[e] + 1)
-                )
-
-                model += (
-                    ev_start_stops_sum[e]
-                    == (ev_partial_sum[e] + ev_boundary_sum[e]) * 2 - 2
-                )
+                # elke start hoort bij een stop; de eerste start/stop is gratis
+                model += ev_start_stops_sum[e] >= ev_starts_sum[e] * 2 - 2
 
                 # equality relaxed to a small epsilon band: energy_needed[e]
                 # is computed outside the model via `hours_avail` (raw
@@ -2454,9 +2447,13 @@ class DaCalc(DaBase):
                     model += p_ev[e][u] == 0
                     model += ev_accu_in[e][u] == 0
                     model += ev_is_partial[e][u] == 0
-                    model += ev_boundary_stop[e][u] == 0
                     model += ev_delta_soc[e][u] == 0
                     model += low_soc_penalty_int[e][u] == 0
+                    model += ev_is_on[e][u] == 0
+                    model += ev_is_off[e][u] == 1
+                    model += ev_start[e][u] == 0
+                    for cs in range(ECS[e]):
+                        model += stage_on[e][cs][u] == 0
 
                 """
                 max_beschikbaar = 0
@@ -2480,11 +2477,10 @@ class DaCalc(DaBase):
                     model += p_ev[e][u] == 0
                     model += ev_accu_in[e][u] == 0
                     model += ev_is_partial[e][u] == 0
-                    model += ev_boundary_stop[e][u] == 0
+                    model += ev_start[e][u] == 0
                     model += ev_is_off[e][u] == 1
                     model += ev_is_on[e][u] == 0
-                model += ev_boundary_sum[e]== 0
-                model += ev_partial_sum[e] == 0
+                model += ev_starts_sum[e] == 0
                 model += ev_start_stops_sum[e] == 0
 
         ##################################################################
@@ -4428,7 +4424,7 @@ class DaCalc(DaBase):
                         f"{ev_charge_stages[e][cs]['ampere']:4.1f}A"
                         for cs in range(ECS[e])
                     )
-                    line1 = f"  uur        {amps}   cons   power     on   off  part bound    soc   delta    cost"
+                    line1 = f"  uur        {amps}   cons   power     on   off  part start    soc   delta    cost"
                     logging.info(line1)
 
                     for u in range(ready_u[e] + 1):
@@ -4442,7 +4438,7 @@ class DaCalc(DaBase):
                             f"   {ev_is_on[e][u].x}"
                             f"   {ev_is_off[e][u].x}"
                             f"   {ev_is_partial[e][u].x}"
-                            f"   {ev_boundary_stop[e][u].x}"
+                            f"   {ev_start[e][u].x}"
                             f"   {ev_soc_kwh[e][u].x:.3f}"
                             f"   {ev_delta_soc[e][u].x:.3f}"
                             f"   {low_soc_penalty_int[e][u].x:.3f}"
@@ -4470,8 +4466,9 @@ class DaCalc(DaBase):
                     logging.info(
                         f"Laden van {self.ev_options[e].name} is niet ingepland"
                     )
-                logging.info(f"Aantal partial stops: {ev_partial_sum[e].x:2.0f}")
-                logging.info(f"Aantal boundary stops: {ev_boundary_sum[e].x:2.0f}")
+                partial_sum = sum(ev_is_partial[e][u].x for u in range(U))
+                logging.info(f"Aantal partial stops: {partial_sum:2.0f}")
+                logging.info(f"Aantal EV starts: {ev_starts_sum[e].x:2.0f}")
                 logging.info(f"Aantal start/stops: {ev_start_stops_sum[e].x:2.0f}")
                 logging.info(f"Penalty per start/stop: {ev_switch_cost[e]:4.3f}")
                 logging.info(f"Totale switch kosten: {switch_cost[e].x:4.2f}")
