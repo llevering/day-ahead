@@ -3803,7 +3803,11 @@ class DaCalc(DaBase):
         # model.max_seconds = 20
         if self.log_level > logging.DEBUG:
             model.verbose = 1
-        model.threads = getattr(self, "_solver_threads", -1)
+        # da_debug replay sets _solver_threads; otherwise the configured value.
+        threads = getattr(self, "_solver_threads", None)
+        if threads is None:
+            threads = self.config.solver_threads
+        model.threads = threads
         if getattr(self, "_debug_capture_vars", False):
             try:
                 from da_debug import build_var_registry
@@ -3822,6 +3826,7 @@ class DaCalc(DaBase):
             strategie = "minimale kosten"
             logging.info(f"Strategie: {strategie}")
             logging.info(f"Maximale fout (maximal gap): {max_gap:<8.6f} euro")
+            logging.info(f"Solver threads: {threads}")
             model.objective = minimize(cost)
             start_calc = time.perf_counter()
             with _capture_native_stdout() as native:
