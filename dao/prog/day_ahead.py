@@ -4543,9 +4543,14 @@ class DaCalc(DaBase):
                     new_ampere_state = ev_charge_stages[e][cs]["ampere"]
                     if new_ampere_state > 0:
                         new_switch_state = "on"
-                    if (stage_fraction < 1) and (
-                        energy_needed[e] > (ev_accu_in[e][0].x + 0.01)
-                    ):
+                    # Een stoptijd binnen dit interval heeft alleen zin als het
+                    # laden niet doorloopt in het volgende interval. Loopt het
+                    # wel door, dan schakelt de stoptijd de lader vlak voor de
+                    # grens uit en zet de volgende run hem weer aan.
+                    charges_next = (
+                        ready_u[e] > 0 and U > 1 and c_ev[e][1].x > 0.001
+                    )
+                    if (stage_fraction < 1) and not charges_next:
                         # stage_fraction is een deel van dit interval, niet van
                         # een heel uur. daarom maal hour_fraction[0].
                         new_ts = (
