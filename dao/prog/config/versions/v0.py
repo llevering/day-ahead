@@ -219,6 +219,19 @@ class ConfigurationV0(DAOConfigBaseModel):
             "x-order": 3,
         },
     )
+    solver_threads: int = Field(
+        default=-1,
+        ge=-1,
+        alias="solver threads",
+        description="Number of threads the MIP solver may use",
+        json_schema_extra={
+            "x-help": "Number of CPU threads for the MIP solver. -1 uses all cores (default). On a small or busy machine fewer threads can be faster, because parallel threads spend time waiting for each other.",
+            "x-validation-hint": "-1 (all cores) or a positive number",
+            "x-ui-group": "DAO",
+            "x-ui-section": "Optimization",
+            "x-order": 4,
+        },
+    )
 
     # User Interface
     notifications: NotificationsConfig = Field(

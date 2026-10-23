@@ -899,7 +899,7 @@ class RecordingIO:
             "schema_min_supported": SCHEMA_MIN_SUPPORTED,
             "captured_at": self._captured_at.isoformat(),
             "interval": getattr(self._primary, "interval", None),
-            "solver_threads": getattr(self._primary, "_solver_threads", -1),
+            "solver_threads": _effective_solver_threads(self._primary),
             "strategy": getattr(self._primary, "strategy", None),
             "dao_version": _dao_version(),
             "git_sha": _git_sha(),
@@ -968,6 +968,16 @@ class RecordingIO:
 
 
 # Leest de addon-versie uit dao/prog/version.py, nodig om een snapshot te kunnen koppelen aan de code die hem produceerde.
+def _effective_solver_threads(dao) -> int:
+    """Thread count calc_optimum() uses: the replay override if set, else
+    the configured ``solver threads`` (-1 = all cores)."""
+    threads = getattr(dao, "_solver_threads", None)
+    if threads is None:
+        cfg = getattr(dao, "config", None)
+        threads = getattr(cfg, "solver_threads", -1)
+    return threads
+
+
 def _dao_version() -> str | None:
     try:
         from dao.prog.version import __version__

@@ -3328,6 +3328,18 @@
       "x-validation-hint": "Must be > 0",
       "title": "Max Gap"
     },
+    "solver threads": {
+      "default": -1,
+      "description": "Number of threads the MIP solver may use",
+      "minimum": -1,
+      "title": "Solver Threads",
+      "type": "integer",
+      "x-help": "Number of CPU threads for the MIP solver. -1 uses all cores (default). On a small or busy machine fewer threads can be faster, because parallel threads spend time waiting for each other.",
+      "x-order": 4,
+      "x-ui-group": "DAO",
+      "x-ui-section": "Optimization",
+      "x-validation-hint": "-1 (all cores) or a positive number"
+    },
     "notifications": {
       "$ref": "#/$defs/NotificationsConfig",
       "description": "Notification settings",
