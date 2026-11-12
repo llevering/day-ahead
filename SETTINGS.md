@@ -722,6 +722,7 @@ Define power levels and corresponding COP values:
 | `start_cost` | number | No | `0.0` | Virtual cost in euro per heat pump start (Unit: `euro/start`) _Must be >= 0, typically 0.02-0.20 euro/start_ |
 | `start_power` | number (optional) | No | `null` | Expected power in W during the first 15 minutes of a run (Unit: `W`) |
 | `max_stage_step` | integer (optional) | No | `null` | Maximum change in stages per 15 minutes while running |
+| `step_up_cost` | number | No | `0.0` | Virtual cost in euro per kW the planned power goes up while running (Unit: `euro/kW`) _Must be >= 0, typically 0.02-0.10 euro/kW_ |
 | `max_heat_deficit` | number (optional) | No | `null` | Maximum heat deficit of the house in kWh (thermal buffer) (Unit: `kWh`) _Typically 1-1.5 degrees times the thermal capacity of the house_ |
 | `max_heat_surplus` | number | No | `0.0` | Maximum heat surplus of the house in kWh (preheating, thermal buffer) (Unit: `kWh`) |
 | `heat_deficit_initial` | number (optional) | No | `null` | Fixed starting heat deficit in kWh (testing or reset) (Unit: `kWh`) |
@@ -794,6 +795,10 @@ Optional, power adjustment: many heat pumps draw more than asked right after a s
 **`max_stage_step`**
 
 Optional, power adjustment: while the heat pump runs, the planned power moves at most this many stages per 15 minutes (up or down), so the plan is easier to follow. Not for a start or a stop, nor for the interval right after a start.
+
+**`step_up_cost`**
+
+Optional, power adjustment: a cost for every kW the planned power goes up while the heat pump runs (a start counts above start_power). Many heat pumps follow a higher power quickly, but don't come back down until they stop, so a short peak in the plan gives hours of too much power. Higher = flatter runs. 0 = off.
 
 **`max_heat_deficit`**
 

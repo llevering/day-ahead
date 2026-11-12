@@ -28,6 +28,7 @@ KNOWN_EXPECT_KEYS = {
     "heatpump_runs",
     "heatpump_start_power_min",
     "heatpump_max_stage_step",
+    "heatpump_step_up_max",
     "machine_runs_in_window",
 }
 

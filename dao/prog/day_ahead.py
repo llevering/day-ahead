@@ -219,15 +219,21 @@ class DaCalc(DaBase):
             logging.warning(f"Warmtetekort ({entity}) niet leesbaar ({e})")
             return None
 
-    def get_hp_stage_pos(self, hp_stages: list[dict]) -> float | None:
-        """Stage position (1 = lowest stage, interpolated) of the power now asked
-        through entity_hp_power, None without that entity."""
+    def get_hp_power_now(self) -> float | None:
+        """Power in W now asked through entity_hp_power, None without that entity."""
         entity = self.heating_options.entity_hp_power
         if entity is None:
             return None
         try:
-            power = float(self.get_state(entity).state) * 1000
+            return float(self.get_state(entity).state) * 1000
         except Exception:
+            return None
+
+    def get_hp_stage_pos(self, hp_stages: list[dict]) -> float | None:
+        """Stage position (1 = lowest stage, interpolated) of the power now asked
+        through entity_hp_power, None without that entity."""
+        power = self.get_hp_power_now()
+        if power is None:
             return None
         if power <= hp_stages[1]["max_power"]:
             return 1.0
@@ -2637,6 +2643,8 @@ class DaCalc(DaBase):
         hp_start_phase_0 = False  # interval 0 is (partly) in the start phase of a run
         hp_start_power_cost = 0  # cost of the start phase for starts after the first hours
         hp_start_cost = 0.0
+        hp_step_up = []  # power increase in W from the interval before, while running
+        hp_step_up_cost = 0.0  # euro per kW of increase
         hp_deficit_cost = 0  # thermal buffer: penalties and value of the end deficit
         thermal_buffer = False
         heat_deficit = []
@@ -3350,6 +3358,31 @@ class DaCalc(DaBase):
                     model += pos[u] - pos[u - 1] <= step + relax
                     model += pos[u - 1] - pos[u] <= step + relax
 
+            # a cost per kW the planned power goes up while running: many heat pumps
+            # follow a higher power, but don't come back down until they stop, so a
+            # short peak costs hours of too much power. Over the whole horizon; from
+            # interval 0 it counts from the power asked now
+            hp_step_up_cost = self.heating_options.step_up_cost
+            if p_hp is not None and hp_step_up_cost > 0:
+                p_tot = [xsum(p_hp[s][u] for s in range(S)) for u in range(U)]
+                # a start is free up to the start power (or the lowest stage): a run
+                # that starts high is just as stuck there
+                p_free = max(hp_stages[1]["max_power"], start_power or 0.0)
+                for u in range(U):
+                    if u == 0:
+                        prev_p = self.get_hp_power_now() if was_running else None
+                        if prev_p is None or hp_start_phase_0:
+                            continue
+                        diff = p_tot[0] - prev_p
+                    else:
+                        diff = p_tot[u] - p_tot[u - 1] - p_free * hp_start[u]
+                    up = model.add_var(var_type=CONTINUOUS, lb=0)
+                    model += up >= diff
+                    hp_step_up.append(up)
+                logging.info(
+                    f"Kosten vermogensverhoging warmtepomp: {hp_step_up_cost:.2f} euro/kW"
+                )
+
             # constrant 7: ieder interval/uur of boiler of wp
             for u in range(U):
                 if boiler_heated_by_heatpump:
@@ -3835,6 +3868,7 @@ class DaCalc(DaBase):
             # virtuele startkosten warmtepomp
             + hp_start_cost * xsum(hp_start)
             + hp_start_power_cost
+            + hp_step_up_cost / 1000 * xsum(hp_step_up)
             # thermische buffer: waarde eindtekort en overschrijding grenzen
             + hp_deficit_cost
             + xsum(
@@ -4373,6 +4407,7 @@ class DaCalc(DaBase):
             total_switch_cost += switch_cost[e].x
             total_low_soc_cost += low_soc_penalty[e].x
         total_hp_start_cost = hp_start_cost * sum(hp_start[u].x for u in range(len(hp_start)))
+        total_hp_step_up_cost = hp_step_up_cost / 1000 * sum(v.x for v in hp_step_up)
         boiler_storage = (
             (boiler_temp[0].x - boiler_temp[U].x)
             * (spec_heat_boiler / (3600 * cop_boiler))
@@ -4386,6 +4421,7 @@ class DaCalc(DaBase):
             + total_switch_cost
             + total_low_soc_cost
             + total_hp_start_cost
+            + total_hp_step_up_cost
             + battery_storage
             + boiler_storage
         )
@@ -4399,6 +4435,7 @@ class DaCalc(DaBase):
             f"EV switch costs    {total_switch_cost: 7.2f}\n"
             f"EV low soc costs   {total_low_soc_cost: 7.2f}\n"
             f"HP start costs     {total_hp_start_cost: 7.2f}\n"
+            f"HP step-up costs   {total_hp_step_up_cost: 7.2f}\n"
             f"Battery storage    {battery_storage: 7.2f}\n"
             f"Boiler storage     {boiler_storage: 7.2f}\n"
             f"Profit production  {profit_production: 7.2f}\n"

@@ -621,6 +621,24 @@ def _check_heatpump_max_stage_step(value: float, ctx: CaseContext) -> CheckResul
     return CheckResult(name, ok, "" if ok else f"stage steps above {value}: {', '.join(bad[:6])}")
 
 
+@case_check("heatpump_step_up_max")
+def _check_heatpump_step_up_max(value: float, ctx: CaseContext) -> CheckResult:
+    """While running, the planned power goes up by at most this many W in total
+    (the sum of all increases from one interval to the next; a start is not counted)."""
+    name = "heatpump_step_up_max"
+    if ctx.mv is None or not ctx.mv.has("p_hp"):
+        return CheckResult(name, False, "no heat pump in this model")
+    total, _pos = _hp_power_and_pos(ctx)
+    us = sorted(total)
+    up = 0.0
+    for i in range(1, len(us)):
+        p, u = total[us[i - 1]], total[us[i]]
+        if p > 1.0 and u > p:
+            up += u - p
+    ok = up <= value + 1.0
+    return CheckResult(name, ok, "" if ok else f"power goes up {up:.0f} W in total, above {value:.0f} W")
+
+
 def _resolve_machine_index(spec: Any, config: dict[str, Any]) -> tuple[int | None, list[str]]:
     """spec is the scenario's expect.machine_runs_in_window.machine,
     normally a name matching config["machines"][*]["name"] (for example

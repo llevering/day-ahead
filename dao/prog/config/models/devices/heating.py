@@ -281,6 +281,20 @@ class HeatingEnabled(BaseModel):
             "x-ui-section": "Configuration",
         },
     )
+    step_up_cost: float = Field(
+        default=0.0,
+        ge=0,
+        description="Virtual cost in euro per kW the planned power goes up while running",
+        json_schema_extra={
+            "x-help": "Optional, power adjustment: a cost for every kW the planned power goes "
+            "up while the heat pump runs (a start counts above start_power). Many heat pumps "
+            "follow a higher power quickly, but don't come back down until they stop, so a short "
+            "peak in the plan gives hours of too much power. Higher = flatter runs. 0 = off.",
+            "x-unit": "euro/kW",
+            "x-ui-section": "Configuration",
+            "x-validation-hint": "Must be >= 0, typically 0.02-0.10 euro/kW",
+        },
+    )
     max_heat_deficit: float | None = Field(
         default=None,
         ge=0,

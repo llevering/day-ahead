@@ -1,0 +1,252 @@
+[
+  {
+    "id": "heatpump-step-up-cost-off",
+    "description": "Running at night with a high deficit and a cheap dip at 03-05 h, no step-up cost: reference plan (power may peak in the dip)",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.26,
+        0.26,
+        0.26,
+        0.2,
+        0.19,
+        0.2,
+        0.26,
+        0.3,
+        0.32,
+        0.3,
+        0.28,
+        0.27,
+        0.26,
+        0.26,
+        0.27,
+        0.29,
+        0.33,
+        0.36,
+        0.37,
+        0.34,
+        0.3,
+        0.28,
+        0.27,
+        0.26
+      ]
+    },
+    "temp": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "states": {
+      "binary_sensor.heatpump_heating": "on",
+      "binary_sensor.heatpump_compressor_running": {
+        "state": "on",
+        "last_changed": "2026-01-13 21:00"
+      },
+      "input_number.heatpump_target_power": "0.82"
+    },
+    "config_patch": {
+      "heating.min_run_length": 1,
+      "heating.degree_days_factor.value": 6.3,
+      "heating.stages": [
+        {
+          "max_power": 0,
+          "cop": 8.0
+        },
+        {
+          "max_power": 490,
+          "cop": 6.23
+        },
+        {
+          "max_power": 610,
+          "cop": 6.17
+        },
+        {
+          "max_power": 725,
+          "cop": 6.09
+        },
+        {
+          "max_power": 820,
+          "cop": 6.01
+        },
+        {
+          "max_power": 920,
+          "cop": 5.68
+        },
+        {
+          "max_power": 1040,
+          "cop": 5.5
+        },
+        {
+          "max_power": 1230,
+          "cop": 5.42
+        },
+        {
+          "max_power": 1535,
+          "cop": 5.3
+        },
+        {
+          "max_power": 1840,
+          "cop": 4.95
+        }
+      ],
+      "heating.entity_hp_running": "binary_sensor.heatpump_compressor_running",
+      "heating.entity_hp_power": "input_number.heatpump_target_power",
+      "heating.max_heat_deficit": 36,
+      "heating.max_heat_surplus": 15,
+      "heating.heat_deficit_initial": 30,
+      "heating.start_cost": 0.03,
+      "heating.max_stage_step": 1,
+      "boiler.boiler_present": false
+    },
+    "expect": {
+      "solved": true
+    }
+  },
+  {
+    "id": "heatpump-step-up-cost",
+    "description": "Same night with step_up_cost 0.10 euro/kW: the planned power goes up by at most ~1 stage pair in total instead of peaking in the cheap dip",
+    "start": "2026-01-14 00:00",
+    "prices": {
+      "cons": [
+        0.26,
+        0.26,
+        0.26,
+        0.2,
+        0.19,
+        0.2,
+        0.26,
+        0.3,
+        0.32,
+        0.3,
+        0.28,
+        0.27,
+        0.26,
+        0.26,
+        0.27,
+        0.29,
+        0.33,
+        0.36,
+        0.37,
+        0.34,
+        0.3,
+        0.28,
+        0.27,
+        0.26
+      ]
+    },
+    "temp": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "states": {
+      "binary_sensor.heatpump_heating": "on",
+      "binary_sensor.heatpump_compressor_running": {
+        "state": "on",
+        "last_changed": "2026-01-13 21:00"
+      },
+      "input_number.heatpump_target_power": "0.82"
+    },
+    "config_patch": {
+      "heating.min_run_length": 1,
+      "heating.degree_days_factor.value": 6.3,
+      "heating.stages": [
+        {
+          "max_power": 0,
+          "cop": 8.0
+        },
+        {
+          "max_power": 490,
+          "cop": 6.23
+        },
+        {
+          "max_power": 610,
+          "cop": 6.17
+        },
+        {
+          "max_power": 725,
+          "cop": 6.09
+        },
+        {
+          "max_power": 820,
+          "cop": 6.01
+        },
+        {
+          "max_power": 920,
+          "cop": 5.68
+        },
+        {
+          "max_power": 1040,
+          "cop": 5.5
+        },
+        {
+          "max_power": 1230,
+          "cop": 5.42
+        },
+        {
+          "max_power": 1535,
+          "cop": 5.3
+        },
+        {
+          "max_power": 1840,
+          "cop": 4.95
+        }
+      ],
+      "heating.entity_hp_running": "binary_sensor.heatpump_compressor_running",
+      "heating.entity_hp_power": "input_number.heatpump_target_power",
+      "heating.max_heat_deficit": 36,
+      "heating.max_heat_surplus": 15,
+      "heating.heat_deficit_initial": 30,
+      "heating.start_cost": 0.03,
+      "heating.max_stage_step": 1,
+      "boiler.boiler_present": false,
+      "heating.step_up_cost": 0.1
+    },
+    "expect": {
+      "solved": true,
+      "heatpump_step_up_max": 400
+    }
+  }
+]

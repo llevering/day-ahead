@@ -1889,6 +1889,17 @@
           "x-help": "Optional, power adjustment: while the heat pump runs, the planned power moves at most this many stages per 15 minutes (up or down), so the plan is easier to follow. Not for a start or a stop, nor for the interval right after a start.",
           "x-ui-section": "Configuration"
         },
+        "step_up_cost": {
+          "default": 0.0,
+          "description": "Virtual cost in euro per kW the planned power goes up while running",
+          "minimum": 0,
+          "title": "Step Up Cost",
+          "type": "number",
+          "x-help": "Optional, power adjustment: a cost for every kW the planned power goes up while the heat pump runs (a start counts above start_power). Many heat pumps follow a higher power quickly, but don't come back down until they stop, so a short peak in the plan gives hours of too much power. Higher = flatter runs. 0 = off.",
+          "x-ui-section": "Configuration",
+          "x-unit": "euro/kW",
+          "x-validation-hint": "Must be >= 0, typically 0.02-0.10 euro/kW"
+        },
         "max_heat_deficit": {
           "anyOf": [
             {
