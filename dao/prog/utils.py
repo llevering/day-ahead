@@ -4,6 +4,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import traceback
 
@@ -280,10 +281,14 @@ def get_version():
 
 
 def version_number(version_str: str) -> int:
-    lst = [x for x in version_str.split(".")]
-    lst = lst[:3]
+    """2026.11.0 -> 20261100. Only the leading digits of each part count, so a
+    suffix as in 2026.11.0-hp22 or 2026.11.0rc1 doesn't break it."""
+    lst = []
+    for x in version_str.split(".")[:3]:
+        digits = re.match(r"\d*", x.strip()).group()
+        lst.append(int(digits) if digits else 0)
     lst.reverse()
-    result = sum(int(x) * (100**i) for i, x in enumerate(lst))
+    result = sum(x * (100**i) for i, x in enumerate(lst))
     return result
 
 
